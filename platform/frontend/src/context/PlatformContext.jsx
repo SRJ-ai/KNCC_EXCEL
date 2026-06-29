@@ -11,6 +11,7 @@ export function PlatformProvider({ children }) {
   const [invoices, setInvoices] = useState([]);
   const [cos, setCos] = useState([]);
   const [documents, setDocuments] = useState([]);
+  const [materials, setMaterials] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -38,6 +39,10 @@ export function PlatformProvider({ children }) {
           // Fetch Documents
           const { data: docData } = await supabase.from('documents').select('*').eq('project_id', projData.id);
           if (docData) setDocuments(docData);
+
+          // Fetch Materials
+          const { data: matData } = await supabase.from('materials').select('*').eq('project_id', projData.id);
+          if (matData) setMaterials(matData);
         }
       } catch (err) {
         console.error("Failed to fetch platform data", err);
@@ -53,6 +58,7 @@ export function PlatformProvider({ children }) {
       setInvoices([]);
       setCos([]);
       setDocuments([]);
+      setMaterials([]);
     }
   }, [user, organization]);
 
@@ -85,13 +91,26 @@ export function PlatformProvider({ children }) {
   };
 
   const addCO = async (coData) => {
-    const newCO = { 
-      ...coData, 
-      project_id: activeProject.id, 
-      organization_name: organization.name 
+    const newCO = {
+      ...coData,
+      id: coData.id || `CO-${Math.floor(Math.random() * 1000)}`,
+      project_id: activeProject?.id,
+      organization_name: organization.name
     };
-    const { data } = await supabase.from('change_orders').insert([newCO]).select().single();
-    if (data) setCos(prev => [...prev, data]);
+    const { data, error } = await supabase.from('change_orders').insert(newCO).select().single();
+    if (error) console.error("Error adding CO", error);
+    else setCos([...cos, data]);
+  };
+
+  const addMaterial = async (materialData) => {
+    const newMaterial = {
+      ...materialData,
+      project_id: activeProject?.id,
+      organization_name: organization.name
+    };
+    const { data, error } = await supabase.from('materials').insert(newMaterial).select().single();
+    if (error) console.error("Error adding material", error);
+    else setMaterials([...materials, data]);
   };
 
   const addDocument = async (docData) => {
@@ -111,6 +130,7 @@ export function PlatformProvider({ children }) {
       pos, addPO,
       invoices, addInvoice,
       cos, addCO,
+      materials, addMaterial,
       loading
     }}>
       {children}

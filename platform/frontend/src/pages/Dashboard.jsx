@@ -3,12 +3,15 @@ import { useAuth } from '../context/AuthContext';
 import { usePlatform } from '../context/PlatformContext';
 import { Activity, BarChart2, Package, TrendingUp, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import ManualEntryModal from '../components/ManualEntryModal';
 import './Dashboard.css';
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const [isManualModalOpen, setIsManualModalOpen] = React.useState(false);
 
-  const { pos, invoices, cos, documents } = usePlatform();
+  const { pos, invoices, cos, documents, materials, activeProject } = usePlatform();
+  const [exporting, setExporting] = React.useState(false);
 
   const totalPOAmount = pos.reduce((sum, po) => sum + Number(po.amount || 0), 0);
   const totalCOAmount = cos.reduce((sum, co) => sum + Number(co.cost || 0), 0);
@@ -44,18 +47,70 @@ export default function Dashboard() {
           <h1 className="dashboard-title">Welcome back, {user?.name || 'Engineer'}</h1>
           <p className="dashboard-subtitle">Here is what is happening on site today.</p>
         </div>
-        <button style={{
-          padding: '0.75rem 1.5rem',
-          background: 'linear-gradient(135deg, #F59E0B, #3B82F6)',
-          border: 'none',
-          borderRadius: '6px',
-          color: '#fff',
-          fontWeight: 600,
-          cursor: 'pointer'
-        }}>
-          Generate Report
-        </button>
+        <div style={{ display: 'flex', gap: '1rem' }}>
+          <button 
+            onClick={() => setIsManualModalOpen(true)}
+            style={{
+              padding: '0.75rem 1.5rem',
+              background: '#27272a',
+              border: '1px solid #3f3f46',
+              borderRadius: '6px',
+              color: '#fff',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+          >
+            + Manual Entry
+          </button>
+          <button 
+            disabled={exporting || !activeProject}
+            onClick={async () => {
+              setExporting(true);
+              try {
+                const res = await fetch('/api/export/client-requirements', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    project_name: activeProject.name,
+                    materials,
+                    pos,
+                    cos
+                  })
+                });
+                
+                if (res.ok) {
+                  const blob = await res.blob();
+                  const url = window.URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `Client_Requirements_${activeProject.name.replace(' ', '_')}.xlsx`;
+                  a.click();
+                } else {
+                  alert("Failed to generate report.");
+                }
+              } catch (err) {
+                console.error(err);
+                alert("Error exporting");
+              }
+              setExporting(false);
+            }}
+            style={{
+              padding: '0.75rem 1.5rem',
+              background: 'linear-gradient(135deg, #F59E0B, #3B82F6)',
+              border: 'none',
+              borderRadius: '6px',
+              color: '#fff',
+              fontWeight: 600,
+              cursor: exporting ? 'not-allowed' : 'pointer',
+              opacity: exporting ? 0.7 : 1
+            }}
+          >
+            {exporting ? 'Generating...' : 'Generate Report'}
+          </button>
+        </div>
       </div>
+
+      <ManualEntryModal isOpen={isManualModalOpen} onClose={() => setIsManualModalOpen(false)} />
 
       {/* KPI Row */}
       <div className="kpi-grid">
