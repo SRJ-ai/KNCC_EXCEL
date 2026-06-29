@@ -6,7 +6,7 @@ import { supabase } from '../supabaseClient';
 import './UploadCenter.css';
 
 export default function UploadCenter() {
-  const { documents, addDocument, addPO, addInvoice, addCO } = usePlatform();
+  const { documents, addDocument, addPO, addInvoice, addCO, addMaterial } = usePlatform();
   const { user } = useAuth();
   const fileInputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
