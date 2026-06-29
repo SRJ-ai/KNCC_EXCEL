@@ -4,40 +4,67 @@ import { supabase } from '../supabaseClient';
 
 const PlatformContext = createContext(null);
 
-// Hardcoded demo data for Willow Way Village
-const DEMO_PROJECT = {
-  id: 'demo-wwv-123',
-  name: 'Willow Way Village',
-  status: 'In Progress',
-  location: '123 Willow Way, Springfield',
-  client: 'KNCC Development Corp',
-  budget: 500000,
-  created_at: '2023-01-01T00:00:00Z'
-};
+// Hardcoded demo data for Client Projects
+const DEMO_PROJECTS = [
+  {
+    id: 'demo-cobia-1',
+    name: 'Cobia Cove Appartments',
+    status: 'In Progress',
+    location: 'Cobia Cove',
+    client: 'KNCC Development Corp',
+    budget: 1500000,
+    created_at: '2025-01-01T00:00:00Z',
+    tax_rate: 1.0825
+  },
+  {
+    id: 'demo-willow-2',
+    name: 'Willow Way Apts',
+    status: 'In Progress',
+    location: 'Willow Way Village',
+    client: 'KNCC Development Corp',
+    budget: 850000,
+    created_at: '2025-01-01T00:00:00Z',
+    tax_rate: 1.0825
+  }
+];
 
 const DEMO_POS = [
-  { id: 'po-1', po_number: 'PO-WWV-001', project_id: 'demo-wwv-123', supplier: 'ABC Construction Supplies', vendor: 'ABC Construction Supplies', amount: 50000, status: 'Approved', date: '2023-01-15', description: 'Concrete & Masonry Materials' },
-  { id: 'po-2', po_number: 'PO-WWV-002', project_id: 'demo-wwv-123', supplier: 'SteelCore Inc', vendor: 'SteelCore Inc', amount: 35000, status: 'Approved', date: '2023-02-01', description: 'Structural Steel Beams' },
+  { id: 'po-c1', po_number: 'PO-COBIA-001', project_id: 'demo-cobia-1', supplier: 'Lumber Supply Co', vendor: 'Lumber Supply Co', amount: 85000, status: 'Approved', date: '2025-08-01', description: 'Framing Package' },
+  { id: 'po-w1', po_number: 'PO-WILLOW-001', project_id: 'demo-willow-2', supplier: 'Lumber Supply Co', vendor: 'Lumber Supply Co', amount: 45000, status: 'Approved', date: '2025-10-01', description: 'Framing Package' },
 ];
 
 const DEMO_INVOICES = [
-  { id: 'inv-1', invoice_number: 'INV-001', project_id: 'demo-wwv-123', po_id: 'po-1', supplier: 'ABC Construction Supplies', amount: 15000, status: 'Paid', date: '2023-02-10' },
-  { id: 'inv-2', invoice_number: 'INV-002', project_id: 'demo-wwv-123', po_id: 'po-1', supplier: 'ABC Construction Supplies', amount: 20000, status: 'Pending', date: '2023-03-25' },
-  { id: 'inv-3', invoice_number: 'INV-003', project_id: 'demo-wwv-123', po_id: 'po-2', supplier: 'SteelCore Inc', amount: 35000, status: 'Paid', date: '2023-03-10' },
+  { id: 'inv-c1', invoice_number: 'INV-46098', project_id: 'demo-cobia-1', po_id: 'po-c1', supplier: 'Lumber Supply Co', amount: 25000, status: 'Paid', date: '2025-09-01' },
+  { id: 'inv-w1', invoice_number: 'INV-45968', project_id: 'demo-willow-2', po_id: 'po-w1', supplier: 'Lumber Supply Co', amount: 15000, status: 'Paid', date: '2025-11-01' },
 ];
 
 const DEMO_COS = [
-  { id: 'CO-WWV-01', co_number: 'CO-001', description: 'Upgraded landscaping for common areas', amount: 5000, cost: 5000, status: 'Approved', project_id: 'demo-wwv-123', date: '2023-04-05', title: 'Landscaping Upgrade' },
-  { id: 'CO-WWV-02', co_number: 'CO-002', description: 'Additional street lighting required by city', amount: 8500, cost: 8500, status: 'Pending', project_id: 'demo-wwv-123', date: '2023-05-12', title: 'Street Lighting Addition' },
+  // Cobia COs
+  { id: 'CO-C-01', co_number: 'CO 09.17.2025', description: 'Change order 09.17', amount: 500, cost: 500, status: 'Approved', project_id: 'demo-cobia-1', date: '2025-09-17', title: 'CO 09.17.2025' },
+  { id: 'CO-C-02', co_number: 'CO 11.11.2025', description: 'Change order 11.11', amount: 800, cost: 800, status: 'Approved', project_id: 'demo-cobia-1', date: '2025-11-11', title: 'CO 11.11.2025' },
+  { id: 'CO-C-03', co_number: 'CO 12.29.2025', description: 'Change order 12.29', amount: 1200, cost: 1200, status: 'Approved', project_id: 'demo-cobia-1', date: '2025-12-29', title: 'CO 12.29.2025' },
+  // Willow COs
+  { id: 'CO-W-01', co_number: 'CO 11.21.2025', description: 'Change order 11.21', amount: 450, cost: 450, status: 'Approved', project_id: 'demo-willow-2', date: '2025-11-21', title: 'CO 11.21.2025' },
+  { id: 'CO-W-02', co_number: 'CO 11.24.2025', description: 'Change order 11.24', amount: 950, cost: 950, status: 'Approved', project_id: 'demo-willow-2', date: '2025-11-24', title: 'CO 11.24.2025' },
+  { id: 'CO-W-03', co_number: 'CO 12.08.2025', description: 'Change order 12.08', amount: 320, cost: 320, status: 'Approved', project_id: 'demo-willow-2', date: '2025-12-08', title: 'CO 12.08.2025' },
 ];
 
 const DEMO_MATERIALS = [
-  { id: 'mat-1', item_code: 'CON-001', description: 'Portland Cement Type II', quantity: 200, uom: 'bags', unit_price: 15, amount: 3000, footage: 0, dimensions: 'N/A', source_document: 'PO-WWV-001', project_id: 'demo-wwv-123' },
-  { id: 'mat-2', item_code: 'STL-001', description: 'Rebar #5 Grade 60', quantity: 500, uom: 'lf', unit_price: 12, amount: 6000, footage: 500, dimensions: '5/8" dia', source_document: 'PO-WWV-002', project_id: 'demo-wwv-123' },
+  // Cobia Materials
+  { id: 'mat-c1', item_code: 'SYP #2', description: 'Lumber', quantity: 717, uom: 'pcs', unit_price: 435, amount: 717 * 435, footage: '12', dimensions: '2x6', source_document: 'po-c1', project_id: 'demo-cobia-1' },
+  { id: 'mat-c2', item_code: 'SYP #2', description: 'Lumber', quantity: 231, uom: 'pcs', unit_price: 435, amount: 231 * 435, footage: '14', dimensions: '2x6', source_document: 'po-c1', project_id: 'demo-cobia-1' },
+  { id: 'mat-c3', item_code: 'SYP #2', description: 'Lumber', quantity: 404, uom: 'pcs', unit_price: 435, amount: 404 * 435, footage: '16', dimensions: '2x6', source_document: 'po-c1', project_id: 'demo-cobia-1' },
+  { id: 'mat-c4', item_code: 'SYP #2 PET', description: 'Lumber', quantity: 9177, uom: 'pcs', unit_price: 525, amount: 9177 * 525, footage: '104-5/8', dimensions: '2x6', source_document: 'po-c1', project_id: 'demo-cobia-1' },
+  
+  // Willow Materials
+  { id: 'mat-w1', item_code: 'PT', description: 'Lumber', quantity: 5, uom: 'pcs', unit_price: 1145, amount: 5 * 1145, footage: '10', dimensions: '2x6', source_document: 'po-w1', project_id: 'demo-willow-2' },
+  { id: 'mat-w2', item_code: 'PT', description: 'Lumber', quantity: 2922, uom: 'pcs', unit_price: 785, amount: 2922 * 785, footage: '1', dimensions: '2x4', source_document: 'po-w1', project_id: 'demo-willow-2' },
+  { id: 'mat-w3', item_code: 'PT', description: 'Lumber', quantity: 5, uom: 'pcs', unit_price: 785, amount: 5 * 785, footage: '10', dimensions: '2x4', source_document: 'po-w1', project_id: 'demo-willow-2' },
 ];
 
 export function PlatformProvider({ children }) {
   const { user, organization } = useAuth();
+  const [projects, setProjects] = useState([]);
   const [activeProject, setActiveProject] = useState(null);
   const [pos, setPos] = useState([]);
   const [invoices, setInvoices] = useState([]);
@@ -46,6 +73,30 @@ export function PlatformProvider({ children }) {
   const [materials, setMaterials] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isDemoMode, setIsDemoMode] = useState(false);
+
+  const loadDemoProject = (project) => {
+    setIsDemoMode(true);
+    setActiveProject(project);
+    setPos(DEMO_POS.filter(p => p.project_id === project.id));
+    setInvoices(DEMO_INVOICES.filter(i => i.project_id === project.id));
+    setCos(DEMO_COS.filter(c => c.project_id === project.id));
+    setDocuments([]);
+    setMaterials(DEMO_MATERIALS.filter(m => m.project_id === project.id));
+  };
+
+  const switchProject = (projectId) => {
+    const proj = projects.find(p => p.id === projectId);
+    if (!proj) return;
+    
+    if (isDemoMode) {
+      loadDemoProject(proj);
+    } else {
+      // In a real app we'd fetch the data for the new project from Supabase here.
+      // For this prototype, if it's not demo mode, we just set the active project.
+      setActiveProject(proj);
+      setPos([]); setInvoices([]); setCos([]); setDocuments([]); setMaterials([]);
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -70,8 +121,9 @@ export function PlatformProvider({ children }) {
 
         if (projErr) console.warn("Project fetch error (may be RLS):", projErr.message);
 
-        if (projData) {
+          if (projData) {
           setIsDemoMode(false);
+          setProjects([projData]);
           setActiveProject(projData);
 
           const [poRes, invRes, coRes, docRes, matRes] = await Promise.all([
@@ -89,24 +141,14 @@ export function PlatformProvider({ children }) {
           if (matRes.data) setMaterials(matRes.data);
         } else {
           // No project found → load demo data automatically
-          console.log("No project found. Loading Willow Way Village demo.");
-          setIsDemoMode(true);
-          setActiveProject(DEMO_PROJECT);
-          setPos(DEMO_POS);
-          setInvoices(DEMO_INVOICES);
-          setCos(DEMO_COS);
-          setDocuments([]);
-          setMaterials(DEMO_MATERIALS);
+          console.log("No project found. Loading Cobia Cove demo.");
+          setProjects(DEMO_PROJECTS);
+          loadDemoProject(DEMO_PROJECTS[0]);
         }
       } catch (err) {
         console.error("Failed to fetch platform data, falling back to demo:", err);
-        setIsDemoMode(true);
-        setActiveProject(DEMO_PROJECT);
-        setPos(DEMO_POS);
-        setInvoices(DEMO_INVOICES);
-        setCos(DEMO_COS);
-        setDocuments([]);
-        setMaterials(DEMO_MATERIALS);
+        setProjects(DEMO_PROJECTS);
+        loadDemoProject(DEMO_PROJECTS[0]);
       }
       setLoading(false);
     };
@@ -191,14 +233,22 @@ export function PlatformProvider({ children }) {
 
   return (
     <PlatformContext.Provider value={{
-      activeProject, createProject,
-      documents, addDocument,
-      pos, addPO,
-      invoices, addInvoice,
-      cos, addCO,
-      materials, addMaterial,
+      projects,
+      activeProject,
+      setActiveProject,
+      switchProject,
+      pos,
+      invoices,
+      cos,
+      documents,
+      materials,
       loading,
-      isDemoMode
+      isDemoMode,
+      createProject,
+      addPO,
+      addInvoice,
+      addCO,
+      addMaterial
     }}>
       {children}
     </PlatformContext.Provider>

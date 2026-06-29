@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { Bell, Search, Settings, LogOut, User } from 'lucide-react';
 
 const TopBar = () => {
-  const { activeProject, isDemoMode } = usePlatform();
+  const { projects, activeProject, isDemoMode, switchProject } = usePlatform();
   const { user, logout } = useAuth();
 
   return (
@@ -33,9 +33,28 @@ const TopBar = () => {
           <span style={{ color: '#333', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600 }}>
             Project
           </span>
-          <span style={{ color: '#e4e4e7', fontWeight: 600, fontSize: '13px' }}>
-            {activeProject?.name || 'No Project'}
-          </span>
+          {projects && projects.length > 1 ? (
+            <select
+              value={activeProject?.id || ''}
+              onChange={e => switchProject(e.target.value)}
+              style={{
+                background: 'transparent', color: '#e4e4e7', border: 'none',
+                outline: 'none', fontWeight: 600, fontSize: '13px',
+                cursor: 'pointer', fontFamily: 'Inter', appearance: 'none',
+                paddingRight: '10px'
+              }}
+            >
+              {projects.map(p => (
+                <option key={p.id} value={p.id} style={{ background: '#0a0a0a', color: '#e4e4e7' }}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <span style={{ color: '#e4e4e7', fontWeight: 600, fontSize: '13px' }}>
+              {activeProject?.name || 'No Project'}
+            </span>
+          )}
           {isDemoMode && (
             <span style={{
               background: 'rgba(245,158,11,0.1)', color: '#F59E0B',
