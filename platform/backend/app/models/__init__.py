@@ -7,8 +7,9 @@ from .delivery import Delivery
 from .inventory import Inventory
 from .vpo import VPO
 from .activity import Activity
+from .mapping import ItemMapping
 
 __all__ = [
     "Organization", "User", "Project", "Material", "COAdjustment", "Document",
-    "Delivery", "Inventory", "VPO", "Activity"
+    "Delivery", "Inventory", "VPO", "Activity", "ItemMapping"
 ]

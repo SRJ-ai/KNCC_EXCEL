@@ -37,7 +37,37 @@ def parse_line_items(lines):
     items = []
     for i, line in enumerate(lines):
         line = line.strip()
-        # QTY UOM ITEM# DESC FOOTAGE UOM UNIT_PRICE PRICE_UOM AMOUNT
+        # PO format: Category Qty T x W L Description LF BF Cost $ Total
+        # Match groups: 1:Category 2:Qty 3:T 4:W 5:L 6:Description 7:LF 8:BF 9:Cost 10:Total
+        m_po = re.match(r'^(Lumber|Panels|EWP|Each|Hardware|Invoice|LVL)\s+([\d,]+)\s+(\d+)\s*[xX]\s*([\d\.]+)\s+(\d+)\s+(.*?)\s+([\d,]+)\s+([\d,]+)\s+([\d,.]+)\s+\$\s+(-?[\d,]+\.\d{2})', line, re.IGNORECASE)
+        if m_po:
+            item = {
+                "category": m_po.group(1).lower(),
+                "quantity": parse_number(m_po.group(2)),
+                "description": m_po.group(6).strip(),
+                "footage": parse_number(m_po.group(7)),
+                "unit_price": parse_number(m_po.group(9)),
+                "amount": parse_number(m_po.group(10)),
+                "dimensions": f"{m_po.group(3)}X{m_po.group(4)}X{m_po.group(5)}"
+            }
+            items.append(item)
+            continue
+            
+        m_po_each = re.match(r'^(Lumber|Panels|EWP|Each|Hardware|Invoice|LVL)\s+([\d,]+)\s+(.*?)\s+([\d,]+)\s+([\d,]+)\s+([\d,.]+)\s+\$\s+(-?[\d,]+\.\d{2})', line, re.IGNORECASE)
+        if m_po_each and not re.search(r'\d+\s*[xX]\s*[\d\.]+', line):
+            item = {
+                "category": m_po_each.group(1).lower(),
+                "quantity": parse_number(m_po_each.group(2)),
+                "description": m_po_each.group(3).strip(),
+                "footage": parse_number(m_po_each.group(4)),
+                "unit_price": parse_number(m_po_each.group(6)),
+                "amount": parse_number(m_po_each.group(7)),
+                "dimensions": ""
+            }
+            items.append(item)
+            continue
+
+        # Invoice QTY UOM ITEM# DESC FOOTAGE UOM UNIT_PRICE PRICE_UOM AMOUNT
         m = re.match(r'^([\d,]+)\s+(PC|EA|LF)\s+(\S+)\s+(.*?)\s+([\d,]+)\s+(BF|SF|LF|EA)\s+([\d,.]+)/(MBF|MSF|PC|EA|LF)\s+(-?[\d,]+\.\d{2})', line)
         if m:
             item = {
@@ -48,7 +78,8 @@ def parse_line_items(lines):
                 "footage": parse_number(m.group(5)),
                 "unit_price": parse_number(m.group(7)),
                 "amount": parse_number(m.group(9)),
-                "dimensions": ""
+                "dimensions": "",
+                "category": "lumber"
             }
             if i + 1 < len(lines):
                 dm = re.match(r'^(\d+X\d+X\d+)', lines[i+1].strip())
@@ -67,7 +98,8 @@ def parse_line_items(lines):
                 "footage": parse_number(m2.group(4)),
                 "unit_price": parse_number(m2.group(6)),
                 "amount": parse_number(m2.group(7)),
-                "dimensions": ""
+                "dimensions": "",
+                "category": "each"
             }
             items.append(item)
     return items

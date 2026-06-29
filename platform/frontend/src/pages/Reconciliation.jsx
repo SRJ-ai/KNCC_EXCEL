@@ -1,50 +1,92 @@
-import React from 'react';
-import { Download } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Download, Link as LinkIcon, CheckCircle, AlertTriangle } from 'lucide-react';
+import { usePlatform } from '../context/PlatformContext';
 import './Reconciliation.css';
 
 export default function Reconciliation() {
-  const budgetItems = [
-    { category: 'Concrete Materials', budget: 150000, actual: 142000 },
-    { category: 'Structural Steel', budget: 280000, actual: 295000 },
-    { category: 'Lumber & Wood', budget: 75000, actual: 75000 },
-    { category: 'Plumbing Fixtures', budget: 90000, actual: 82500 },
-    { category: 'Electrical Wiring', budget: 110000, actual: 128000 },
-  ];
+  const { activeProject, materials, pos, invoices, cos } = usePlatform();
+  const [unmatchedItems, setUnmatchedItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [mappings, setMappings] = useState({});
 
-  const totalBudget = budgetItems.reduce((acc, item) => acc + item.budget, 0);
-  const totalActual = budgetItems.reduce((acc, item) => acc + item.actual, 0);
-  const variance = totalBudget - totalActual;
+  useEffect(() => {
+    if (activeProject && invoices.length > 0) {
+      fetchUnmatchedItems();
+    }
+  }, [activeProject, invoices, pos]);
 
-  const formatMoney = (amount) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(amount);
+  const fetchUnmatchedItems = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/export/unmatched-items', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project_name: activeProject?.name || "Unknown",
+          materials: materials || [],
+          pos: pos || [],
+          invoices: invoices || [],
+          cos: cos || []
+        })
+      });
+      const data = await res.json();
+      if (data.unmatched) {
+        setUnmatchedItems(data.unmatched);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+    setLoading(false);
   };
+
+  const handleLink = async (invoiceItem) => {
+    const materialId = mappings[invoiceItem.description];
+    if (!materialId) return alert("Please select a PO Material to link to.");
+
+    try {
+      await fetch('/api/mappings/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project_id: activeProject?.id || 1,
+          invoice_description: invoiceItem.description,
+          material_id: parseInt(materialId)
+        })
+      });
+      // Remove from unmatched list
+      setUnmatchedItems(prev => prev.filter(i => i.description !== invoiceItem.description));
+    } catch (err) {
+      console.error(err);
+      alert("Failed to save mapping.");
+    }
+  };
+
+  // Group PO materials for the dropdown
+  const availableMaterials = pos.flatMap(p => p.line_items || []).map((item, idx) => ({
+    id: idx + 1, // Using index as mock material_id for UI since backend expects ID
+    name: `${item.category || 'Item'} - ${item.dimensions ? item.dimensions + ' ' : ''}${item.description}`,
+    qty: item.quantity
+  }));
 
   return (
     <div className="recon-container">
       <div className="recon-header">
         <div>
-          <h1 className="recon-title">Budget Reconciliation</h1>
-          <p style={{ color: '#a1a1aa', margin: 0 }}>Compare estimated budgets vs. actual expenditures.</p>
+          <h1 className="recon-title">Invoice Reconciliation</h1>
+          <p style={{ color: '#a1a1aa', margin: 0 }}>Map unmatched invoice line items to their original Purchase Order materials.</p>
         </div>
-        <button style={{ padding: '0.75rem 1.5rem', background: '#3B82F6', border: 'none', borderRadius: '6px', color: '#fff', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-          <Download size={18} /> Export Report
+        <button onClick={fetchUnmatchedItems} style={{ padding: '0.75rem 1.5rem', background: '#3B82F6', border: 'none', borderRadius: '6px', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>
+          {loading ? 'Scanning...' : 'Scan for Unmatched Items'}
         </button>
       </div>
 
       <div className="recon-stats">
-        <div className="stat-box">
-          <div className="stat-label">Total Budget</div>
-          <div className="stat-value">{formatMoney(totalBudget)}</div>
-        </div>
-        <div className="stat-box">
-          <div className="stat-label">Total Actual</div>
-          <div className="stat-value">{formatMoney(totalActual)}</div>
-        </div>
-        <div className="stat-box">
-          <div className="stat-label">Overall Variance</div>
-          <div className={`stat-value ${variance >= 0 ? 'under' : 'over'}`}>
-            {variance >= 0 ? '+' : ''}{formatMoney(variance)}
+        <div className="stat-box" style={{ borderColor: unmatchedItems.length > 0 ? '#F59E0B' : '#10B981' }}>
+          <div className="stat-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            {unmatchedItems.length > 0 ? <AlertTriangle size={18} color="#F59E0B" /> : <CheckCircle size={18} color="#10B981" />}
+            Items Requiring Attention
           </div>
+          <div className="stat-value">{unmatchedItems.length}</div>
         </div>
       </div>
 
@@ -52,43 +94,53 @@ export default function Reconciliation() {
         <table className="recon-table">
           <thead>
             <tr>
-              <th>Cost Category</th>
-              <th>Budgeted Cost</th>
-              <th>Actual Cost</th>
-              <th>Variance</th>
-              <th style={{ width: '30%' }}>Utilization</th>
+              <th>Invoice #</th>
+              <th>Date</th>
+              <th style={{ width: '40%' }}>Unmatched Description</th>
+              <th>Quantity</th>
+              <th style={{ width: '30%' }}>Link to PO Material</th>
+              <th>Action</th>
             </tr>
           </thead>
           <tbody>
-            {budgetItems.map(item => {
-              const itemVariance = item.budget - item.actual;
-              const utilPercent = Math.min((item.actual / item.budget) * 100, 100);
-              const isOver = item.actual > item.budget;
-              
-              return (
-                <tr key={item.category}>
-                  <td style={{ fontWeight: 500 }}>{item.category}</td>
-                  <td>{formatMoney(item.budget)}</td>
-                  <td>{formatMoney(item.actual)}</td>
-                  <td style={{ color: itemVariance >= 0 ? '#10B981' : '#EF4444', fontWeight: 600 }}>
-                    {itemVariance >= 0 ? '+' : ''}{formatMoney(itemVariance)}
+            {unmatchedItems.length === 0 ? (
+              <tr>
+                <td colSpan="6" style={{ textAlign: 'center', padding: '3rem', color: '#a1a1aa' }}>
+                  No unmatched items! Your Excel generation will be perfect.
+                </td>
+              </tr>
+            ) : (
+              unmatchedItems.map((item, idx) => (
+                <tr key={idx}>
+                  <td>{item.invoice_number}</td>
+                  <td>{item.date}</td>
+                  <td style={{ fontWeight: 500, color: '#F87171' }}>{item.description}</td>
+                  <td>{item.quantity} {item.uom}</td>
+                  <td>
+                    <select 
+                      style={{ width: '100%', padding: '0.5rem', background: '#18181b', border: '1px solid #3f3f46', color: '#fff', borderRadius: '4px' }}
+                      value={mappings[item.description] || ""}
+                      onChange={(e) => setMappings({...mappings, [item.description]: e.target.value})}
+                    >
+                      <option value="">Select a PO Material...</option>
+                      {availableMaterials.map(mat => (
+                        <option key={mat.id} value={mat.id}>
+                          {mat.name} (Qty: {mat.qty})
+                        </option>
+                      ))}
+                    </select>
                   </td>
                   <td>
-                    <div className="bar-wrapper">
-                      <div className="bar-bg">
-                        <div 
-                          className="bar-fill" 
-                          style={{ width: `${utilPercent}%`, background: isOver ? '#EF4444' : '#3B82F6' }}
-                        ></div>
-                      </div>
-                      <span style={{ fontSize: '0.85rem', color: isOver ? '#EF4444' : '#a1a1aa' }}>
-                        {Math.round((item.actual / item.budget) * 100)}%
-                      </span>
-                    </div>
+                    <button 
+                      onClick={() => handleLink(item)}
+                      style={{ padding: '0.5rem 1rem', background: '#10B981', border: 'none', borderRadius: '4px', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}
+                    >
+                      <LinkIcon size={16} /> Link
+                    </button>
                   </td>
                 </tr>
-              );
-            })}
+              ))
+            )}
           </tbody>
         </table>
       </div>

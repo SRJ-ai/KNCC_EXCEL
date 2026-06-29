@@ -1,12 +1,16 @@
 import os
 import re
 from datetime import datetime
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+import tempfile
 import openpyxl
 from openpyxl.utils import get_column_letter
-import tempfile
+from sqlalchemy.orm import Session
+from ..database import get_db
+from ..models.mapping import ItemMapping
+from ..services.excel_generator import process_invoices_for_sheet
 
 router = APIRouter()
 
@@ -82,11 +86,27 @@ def find_matching_row(ws, mat: dict, cols: dict, data_start_row: int, data_end_r
     inv_dims = mat.get("dimensions", "").strip()
     
     inv_t, inv_w, inv_l = None, None, None
-    dm = re.match(r'(\d+)X(\d+)X(\d+)', inv_dims)
+    dm = re.match(r'(\d+)\s*[xX]\s*(\d+)\s*[xX]\s*(\d+)', inv_dims)
+    if not dm:
+        # Fallback to searching the description for T x W x L
+        dm = re.search(r'(\d+)\s*[xX]\s*(\d+)\s*[xX]\s*(\d+)', inv_desc)
+        
     if dm:
         inv_t = int(dm.group(1))
         inv_w = int(dm.group(2))
         inv_l = int(dm.group(3))
+    else:
+        # Try to find just W x L (e.g. 4X8 for panels)
+        dm_2d = re.search(r'(\d+)\s*[xX]\s*(\d+)', inv_desc)
+        if dm_2d:
+            inv_w = int(dm_2d.group(1))
+            inv_l = int(dm_2d.group(2))
+            
+    # Attempt to extract length from PET (e.g. 104-5/8 is 9ft, 116-5/8 is 10ft)
+    if not inv_l and "PET 104-5/8" in inv_desc:
+        inv_l = 9
+    elif not inv_l and "PET 116-5/8" in inv_desc:
+        inv_l = 10
     
     inv_category = classify_item_category(inv_desc)
     best_match = None
@@ -143,6 +163,73 @@ def find_matching_row(ws, mat: dict, cols: dict, data_start_row: int, data_end_r
     if best_score >= 15:
         return best_match
     return None
+
+def safe_set_cell(ws, row, col, val):
+    try:
+        ws.cell(row=row, column=col, value=val)
+    except AttributeError:
+        pass # Ignore MergedCell error
+
+def seed_sheet_from_pos(ws, sheet_name: str, pos: list, cols: dict, project_name: str):
+    # pos contains dictionaries instead of PurchaseOrderData objects since it's from JSON
+    project_pos = [po for po in pos if project_name.lower() in (po.get("project_name") or "Unknown").lower() or po.get("project_name") == "Unknown Project"]
+    
+    type_col = col_to_num(cols["type"])
+    is_blank = True
+    for r in range(3, 10):
+        if ws.cell(row=r, column=type_col).value:
+            is_blank = False
+            break
+            
+    if not is_blank:
+        return # Only seed if blank
+        
+    qty_col = col_to_num(cols["qty"])
+    po_co_qty_col = col_to_num(cols["po_co_qty"])
+    t_col = col_to_num(cols["thickness"])
+    w_col = col_to_num(cols["width"])
+    l_col = col_to_num(cols["length"])
+    mat_type_col = col_to_num(cols["material_type"])
+    cost_col = col_to_num(cols["cost_mbf"])
+    total_cost_col = col_to_num(cols["total_cost"])
+    
+    row = 3
+    for po in project_pos:
+        for item in po.get("line_items", []):
+            category = item.get("category", "lumber").capitalize()
+            safe_set_cell(ws, row, type_col, category)
+            
+            qty = item.get("quantity", 0)
+            safe_set_cell(ws, row, qty_col, qty)
+            safe_set_cell(ws, row, po_co_qty_col, qty)
+            
+            dims = item.get("dimensions", "")
+            if dims:
+                dm = re.match(r'(\d+)X(\d+)X(\d+)', dims)
+                if dm:
+                    safe_set_cell(ws, row, t_col, int(dm.group(1)))
+                    safe_set_cell(ws, row, w_col, int(dm.group(2)))
+                    safe_set_cell(ws, row, l_col, int(dm.group(3)))
+            
+            safe_set_cell(ws, row, mat_type_col, item.get("description", ""))
+            safe_set_cell(ws, row, cost_col, item.get("unit_price", 0))
+            
+            qty_letter = get_column_letter(qty_col)
+            cost_letter = get_column_letter(cost_col)
+            
+            if category.lower() in ["lumber"]:
+                t_letter = get_column_letter(t_col)
+                w_letter = get_column_letter(w_col)
+                l_letter = get_column_letter(l_col)
+                safe_set_cell(ws, row, total_cost_col, f"=({qty_letter}{row}*{t_letter}{row}*{w_letter}{row}*{l_letter}{row}/12)*{cost_letter}{row}/1000")
+            elif category.lower() in ["panels"]:
+                t_letter = get_column_letter(t_col)
+                w_letter = get_column_letter(w_col)
+                safe_set_cell(ws, row, total_cost_col, f"=({qty_letter}{row}*{t_letter}{row}*{w_letter}{row})*{cost_letter}{row}/1000")
+            else:
+                safe_set_cell(ws, row, total_cost_col, f"={qty_letter}{row}*{cost_letter}{row}")
+            
+            row += 1
 
 def update_delivery_totals(ws, cols: dict, data_ranges: list, del_start: int, del_end: int):
     total_del_col = col_to_num(cols["total_delivered"])
@@ -235,7 +322,7 @@ def update_delivery_totals(ws, cols: dict, data_ranges: list, del_start: int, de
             ws.cell(row=row, column=issues_cost_tax_col, value=f"={ic_letter}{row}*1.06")
 
 @router.post("/client-requirements")
-async def generate_client_requirements(req: ExportDataRequest):
+async def generate_client_requirements(req: ExportDataRequest, db: Session = Depends(get_db)):
     template_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates", "Client_Requirements_Template.xlsx")
     
     if not os.path.exists(template_path):
@@ -258,33 +345,36 @@ async def generate_client_requirements(req: ExportDataRequest):
         del_start_num = col_to_num(delivery_start_col)
         # Find next empty date column in row 2
         next_del_col = del_start_num
-        while ws.cell(row=2, column=next_del_col).value is not None:
-            next_del_col += 1
+        while True:
+            cell = ws.cell(row=2, column=next_del_col)
+            if cell.value is not None:
+                next_del_col += 1
+            elif type(cell).__name__ == 'MergedCell':
+                next_del_col += 1
+            else:
+                break
             
         del_end_num = next_del_col - 1 if next_del_col > del_start_num else del_start_num
 
         po_co_qty_num = col_to_num(cols["po_co_qty"])
+        
+        # 1. Seed from POs if template is blank
+        if req.pos:
+            seed_sheet_from_pos(ws, sheet_name, req.pos, cols, req.project_name)
 
-        # Inject materials into PO_CO_QTY and the first delivery date
-        for mat in req.materials:
-            matched_row = None
-            for start_row, end_row in data_ranges:
-                matched_row = find_matching_row(ws, mat, cols, start_row, end_row)
-                if matched_row:
-                    break
-                    
-            if matched_row:
-                # Add to PO/CO Qty
-                curr = ws.cell(row=matched_row, column=po_co_qty_num).value or 0
-                qty = float(mat.get('quantity', 0) or 0)
-                ws.cell(row=matched_row, column=po_co_qty_num, value=curr + qty)
-                
-                # Add to latest delivery column as an assumption for tracked materials
-                # In full implementation, we'd read Invoice dates. Here we just put them in the current period.
-                curr_del = ws.cell(row=matched_row, column=del_start_num).value or 0
-                ws.cell(row=matched_row, column=del_start_num, value=curr_del + qty)
+        # 2. Process invoices using the legacy matching logic
+        if req.invoices:
+            # Fetch mappings from DB
+            db_mappings = db.query(ItemMapping).filter(ItemMapping.project_id == 1).all() # We need project_id, but it's not in ExportDataRequest. Let's look it up later or pass it.
+            # Wait, req doesn't have project_id! Let's just match on description globally for now, or update ExportDataRequest.
+            mapping_dict = {m.invoice_description: m.material_id for m in db_mappings}
+            
+            matched, unmatched = process_invoices_for_sheet(
+                ws, sheet_name, req.invoices, cols, data_ranges, mapping_dict
+            )
 
         # Update all complex formulas
+        del_end_num = max([col_to_num(delivery_start_col)] + [c.column for c in ws[2] if c.value and type(c).__name__ != 'MergedCell'])
         update_delivery_totals(ws, cols, data_ranges, del_start_num, del_end_num)
 
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx")
@@ -301,3 +391,42 @@ async def generate_client_requirements(req: ExportDataRequest):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/unmatched-items")
+async def get_unmatched_items(req: ExportDataRequest, db: Session = Depends(get_db)):
+    template_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates", "Client_Requirements_Template.xlsx")
+    
+    if not os.path.exists(template_path):
+        raise HTTPException(status_code=500, detail="Template not found on server")
+        
+    try:
+        wb = openpyxl.load_workbook(template_path)
+        sheet_name = SHEET_COBIA if "cobia" in req.project_name.lower() else SHEET_WILLOW
+        
+        if sheet_name in wb.sheetnames:
+            ws = wb[sheet_name]
+        else:
+            ws = wb.active
+
+        cols = COBIA_COLS if sheet_name == SHEET_COBIA else WILLOW_COLS
+        data_ranges = [(3, 118), (123, 152), (157, 170), (173, 176)] if sheet_name == SHEET_COBIA else [(3, 78)]
+        
+        # Seed POs so we have rows to match against
+        if req.pos:
+            seed_sheet_from_pos(ws, sheet_name, req.pos, cols, req.project_name)
+            
+        db_mappings = db.query(ItemMapping).all()
+        mapping_dict = {m.invoice_description: m.material_id for m in db_mappings}
+        
+        matched, unmatched = process_invoices_for_sheet(
+            ws, sheet_name, req.invoices, cols, data_ranges, mapping_dict
+        )
+        
+        wb.close()
+        return {"unmatched": unmatched, "matched_count": len(matched)}
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+

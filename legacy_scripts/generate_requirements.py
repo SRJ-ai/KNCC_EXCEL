@@ -35,7 +35,7 @@ from pdf_parser import (
 #  CONFIGURATION
 # =============================================================================
 
-BASE_PATH = os.path.dirname(os.path.abspath(__file__))
+BASE_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INPUT_EXCEL = os.path.join(BASE_PATH, "Client", "Client_Requirments_Doc.xlsx")
 OUTPUT_EXCEL = os.path.join(BASE_PATH, "Client", "Client_Requirments_Doc.xlsx")  # Overwrite in-place
 BACKUP_EXCEL = os.path.join(BASE_PATH, "Client", "Client_Requirments_Doc_BACKUP.xlsx")
@@ -191,11 +191,24 @@ def find_matching_row(ws, invoice_item: LineItem, cols: dict,
     
     # Extract T, W, L from dimensions like "2X6X12"
     inv_t, inv_w, inv_l = None, None, None
-    dm = re.match(r'(\d+)X(\d+)X(\d+)', inv_dims)
+    dm = re.match(r'(\d+)\s*[xX]\s*(\d+)\s*[xX]\s*(\d+)', inv_dims)
+    if not dm:
+        dm = re.search(r'(\d+)\s*[xX]\s*(\d+)\s*[xX]\s*(\d+)', inv_desc)
+        
     if dm:
         inv_t = int(dm.group(1))
         inv_w = int(dm.group(2))
         inv_l = int(dm.group(3))
+    else:
+        dm_2d = re.search(r'(\d+)\s*[xX]\s*(\d+)', inv_desc)
+        if dm_2d:
+            inv_w = int(dm_2d.group(1))
+            inv_l = int(dm_2d.group(2))
+            
+    if not inv_l and "PET 104-5/8" in inv_desc:
+        inv_l = 9
+    elif not inv_l and "PET 116-5/8" in inv_desc:
+        inv_l = 10
     
     # Determine item category
     inv_category = classify_item_category(inv_desc, invoice_item.item_code)
@@ -343,6 +356,10 @@ def find_or_add_delivery_date_col(ws, ship_date: datetime,
         max_date_col = max(date_cols.values())
         new_col = max_date_col + 1
         
+        # Skip over the rest of the previous date's merged span
+        while type(ws.cell(row=date_row, column=new_col)).__name__ == 'MergedCell':
+            new_col += 1
+            
         # Set the date in row 2
         ws.cell(row=date_row, column=new_col, value=ship_date_norm)
         date_cols[ship_date_norm] = new_col
@@ -600,6 +617,91 @@ def update_delivery_totals(ws, cols: dict, delivery_start_col: str,
                     value=f"={ic_letter}{row}*1.06")
 
 
+def safe_set_cell(ws, row, col, val):
+    try:
+        ws.cell(row=row, column=col, value=val)
+    except AttributeError:
+        pass # Ignore MergedCell error
+
+def seed_sheet_from_pos(ws, sheet_name: str, pos: List, cols: dict, project_name: str):
+    print(f"\n{'='*60}")
+    print(f"Seeding sheet: {sheet_name} from POs")
+    print(f"{'='*60}")
+    
+    project_pos = [po for po in pos if project_name.lower() in po.project_name.lower() or po.project_name == "Unknown"]
+    print(f"  Found {len(project_pos)} POs for {project_name}")
+    
+    # Find the last empty row
+    type_col = col_to_num(cols["type"])
+    
+    # For a completely blank template, we start at row 3
+    # Check if it's actually blank
+    is_blank = True
+    for r in range(3, 10):
+        if ws.cell(row=r, column=type_col).value:
+            is_blank = False
+            break
+            
+    if not is_blank:
+        print("  Sheet already has data. Skipping PO seeding.")
+        return
+        
+    print("  Sheet is blank. Generating rows from POs...")
+    
+    qty_col = col_to_num(cols["qty"])
+    po_co_qty_col = col_to_num(cols["po_co_qty"])
+    t_col = col_to_num(cols["thickness"])
+    w_col = col_to_num(cols["width"])
+    l_col = col_to_num(cols["length"])
+    mat_type_col = col_to_num(cols["material_type"])
+    cost_col = col_to_num(cols["cost_mbf"])
+    total_cost_col = col_to_num(cols["total_cost"])
+    
+    row = 3
+    added_items = 0
+    
+    for po in project_pos:
+        for item in po.line_items:
+            category = item.category.capitalize() if hasattr(item, 'category') else "Lumber"
+            safe_set_cell(ws, row, type_col, category)
+            
+            # Initial QTY equals PO qty
+            safe_set_cell(ws, row, qty_col, item.quantity)
+            safe_set_cell(ws, row, po_co_qty_col, item.quantity)
+            
+            # Dimensions
+            if hasattr(item, 'dimensions') and item.dimensions:
+                dm = re.match(r'(\d+)X(\d+)X(\d+)', item.dimensions)
+                if dm:
+                    safe_set_cell(ws, row, t_col, int(dm.group(1)))
+                    safe_set_cell(ws, row, w_col, int(dm.group(2)))
+                    safe_set_cell(ws, row, l_col, int(dm.group(3)))
+            
+            # Description & Price
+            safe_set_cell(ws, row, mat_type_col, item.description)
+            safe_set_cell(ws, row, cost_col, item.unit_price)
+            
+            # Total Cost Formula
+            qty_letter = get_column_letter(qty_col)
+            cost_letter = get_column_letter(cost_col)
+            if category.lower() in ["lumber"]:
+                t_letter = get_column_letter(t_col)
+                w_letter = get_column_letter(w_col)
+                l_letter = get_column_letter(l_col)
+                safe_set_cell(ws, row, total_cost_col, f"=({qty_letter}{row}*{t_letter}{row}*{w_letter}{row}*{l_letter}{row}/12)*{cost_letter}{row}/1000")
+            elif category.lower() in ["panels"]:
+                t_letter = get_column_letter(t_col)
+                w_letter = get_column_letter(w_col)
+                safe_set_cell(ws, row, total_cost_col, f"=({qty_letter}{row}*{t_letter}{row}*{w_letter}{row})*{cost_letter}{row}/1000")
+            else:
+                safe_set_cell(ws, row, total_cost_col, f"={qty_letter}{row}*{cost_letter}{row}")
+            
+            row += 1
+            added_items += 1
+            
+    print(f"  Seeded {added_items} items into {sheet_name} from POs.")
+
+
 def process_vpos_sheet(ws, change_orders: List[ChangeOrderData]):
     """Update the VPO's sheet with any new change orders."""
     print(f"\n{'='*60}")
@@ -660,6 +762,13 @@ def main():
     
     wb = openpyxl.load_workbook(INPUT_EXCEL)
     print(f"  Sheets: {wb.sheetnames}")
+    
+    # Step 2.5: Seed from POs
+    print(f"\n[Step 2.5] Seeding blank template from Purchase Orders...")
+    if SHEET_COBIA in wb.sheetnames:
+        seed_sheet_from_pos(wb[SHEET_COBIA], SHEET_COBIA, data["purchase_orders"], COBIA_COLS, "Cobia Cove")
+    if SHEET_WILLOW in wb.sheetnames:
+        seed_sheet_from_pos(wb[SHEET_WILLOW], SHEET_WILLOW, data["purchase_orders"], WILLOW_COLS, "Willow Way")
     
     # Step 3: Process Cobia Cove sheet
     if SHEET_COBIA in wb.sheetnames:

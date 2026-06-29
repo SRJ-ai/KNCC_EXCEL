@@ -291,7 +291,63 @@ def parse_purchase_order(filepath: str) -> PurchaseOrderData:
     if m:
         po.total = parse_number(m.group(1))
 
+    po.line_items = _parse_po_line_items(text.split('\n'))
+
     return po
+
+
+def _parse_po_line_items(lines: List[str]) -> List[LineItem]:
+    items = []
+    for i, line in enumerate(lines):
+        line = line.strip()
+        # PO format: Category Qty T x W L Description LF BF Cost $ Total
+        # Example: Lumber 2922 2 x 4 1 PT 2922 1948 785.00 $ 1,529.18
+        # Match groups:
+        # 1: Category (Lumber, Panels, Each, etc.)
+        # 2: Qty
+        # 3: T
+        # 4: W
+        # 5: L
+        # 6: Description
+        # 7: LF
+        # 8: BF
+        # 9: Cost
+        # 10: Total
+        m = re.match(r'^(Lumber|Panels|EWP|Each|Hardware|Invoice|LVL)\s+([\d,]+)\s+(\d+)\s*[xX]\s*([\d\.]+)\s+(\d+)\s+(.*?)\s+([\d,]+)\s+([\d,]+)\s+([\d,.]+)\s+\$\s+(-?[\d,]+\.\d{2})', line, re.IGNORECASE)
+        if m:
+            item = LineItem()
+            item.category = m.group(1).lower()
+            item.quantity = parse_number(m.group(2))
+            
+            t = m.group(3)
+            w = m.group(4)
+            l = m.group(5)
+            item.dimensions = f"{t}X{w}X{l}"
+            
+            item.description = m.group(6).strip()
+            item.footage = parse_number(m.group(7)) # LF
+            item.bf_sf = parse_number(m.group(8))   # BF
+            item.unit_price = parse_number(m.group(9))
+            item.amount = parse_number(m.group(10))
+            items.append(item)
+            continue
+            
+        # Match case without T x W L (e.g. Each items)
+        # Example: Each 1 0 x 0 0 STORAGE 0 0 100.00 $ 100.00
+        # Actually, let's just do a generic fallback if T x W L is missing or different
+        m2 = re.match(r'^(Lumber|Panels|EWP|Each|Hardware|Invoice|LVL)\s+([\d,]+)\s+(.*?)\s+([\d,]+)\s+([\d,]+)\s+([\d,.]+)\s+\$\s+(-?[\d,]+\.\d{2})', line, re.IGNORECASE)
+        if m2 and not re.search(r'\d+\s*[xX]\s*[\d\.]+', line):
+            item = LineItem()
+            item.category = m2.group(1).lower()
+            item.quantity = parse_number(m2.group(2))
+            item.description = m2.group(3).strip()
+            item.footage = parse_number(m2.group(4))
+            item.bf_sf = parse_number(m2.group(5))
+            item.unit_price = parse_number(m2.group(6))
+            item.amount = parse_number(m2.group(7))
+            items.append(item)
+
+    return items
 
 
 def scan_and_parse_all(base_path: str):
@@ -342,10 +398,31 @@ def scan_and_parse_all(base_path: str):
                 except Exception as e:
                     result["warnings"].append(f"Failed to parse CO {f}: {e}")
 
+    # Add POs
+    po_dir1 = os.path.join(base_path, "Client", "Cobia Cove", "Cobia Cove PO's")
+    if os.path.exists(po_dir1):
+        for f in sorted(os.listdir(po_dir1)):
+            if f.lower().endswith(".pdf"):
+                try:
+                    po = parse_purchase_order(os.path.join(po_dir1, f))
+                    result["purchase_orders"].append(po)
+                except Exception as e:
+                    result["warnings"].append(f"Failed to parse PO {f}: {e}")
+
+    po_dir2 = os.path.join(base_path, "Client", "Willow way Village") # Will scan root for POs
+    if os.path.exists(po_dir2):
+        for f in sorted(os.listdir(po_dir2)):
+            if f.lower().endswith(".pdf") and "PO" in f.upper():
+                try:
+                    po = parse_purchase_order(os.path.join(po_dir2, f))
+                    result["purchase_orders"].append(po)
+                except Exception as e:
+                    result["warnings"].append(f"Failed to parse PO {f}: {e}")
+
     return result
 
 if __name__ == "__main__":
     import sys
     sys.stdout.reconfigure(encoding='utf-8')
-    data = scan_and_parse_all(os.path.dirname(os.path.abspath(__file__)))
-    print(f"Parsed {len(data['invoices'])} invoices, {len(data['change_orders'])} COs")
+    data = scan_and_parse_all(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    print(f"Parsed {len(data['invoices'])} invoices, {len(data['change_orders'])} COs, {len(data['purchase_orders'])} POs")
