@@ -3,10 +3,11 @@ import { UploadCloud, FileText, FileSpreadsheet, CheckCircle2, Loader2, Sparkles
 import { usePlatform } from '../context/PlatformContext';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../supabaseClient';
+import { parseMatheusDocument } from '../utils/pdfParser';
 import './UploadCenter.css';
 
 export default function UploadCenter() {
-  const { documents, addDocument, addPO, addInvoice, addCO, addMaterial } = usePlatform();
+  const { documents, addDocument, addPO, addInvoice, addCO, addMaterial, activeProject } = usePlatform();
   const { user } = useAuth();
   const fileInputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
@@ -54,44 +55,37 @@ export default function UploadCenter() {
       setUploading(false); // Switch UI to parsing state
 
       try {
-        const scanRes = await fetch('/api/scan/document', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ file_path: data.path, file_name: file.name })
-        });
+        const parsed = await parseMatheusDocument(file, activeProject?.id || 'demo');
+        console.log("Document Parsed!", parsed);
         
-        if (scanRes.ok) {
-          const parsed = await scanRes.json();
-          console.log("Document Parsed!", parsed);
+        if (parsed.type === 'PO') {
+          await addPO(parsed.metadata);
           
-          if (parsed.document_type === 'PO') {
-            await addPO({ vendor: parsed.vendor, amount: parsed.amount, description: `Scanned from ${file.name}` });
-            
-            // Insert materials
-            if (parsed.line_items && parsed.line_items.length > 0) {
-              for (const item of parsed.line_items) {
-                await addMaterial({
-                  quantity: item.quantity || 0,
-                  uom: item.uom || '',
-                  item_code: item.item_code || '',
-                  description: item.description || '',
-                  footage: item.footage || 0,
-                  unit_price: item.unit_price || 0,
-                  amount: item.amount || 0,
-                  dimensions: item.dimensions || '',
-                  source_document: `PO-${parsed.vendor}`
-                });
-              }
+          // Insert materials
+          if (parsed.materials && parsed.materials.length > 0) {
+            for (const item of parsed.materials) {
+              await addMaterial(item);
             }
-          } else if (parsed.document_type === 'Invoice') {
-            await addInvoice({ amount: parsed.amount, date: new Date().toISOString() });
-          } else if (parsed.document_type === 'CO') {
-            await addCO({ title: `Scanned CO - ${parsed.vendor}`, cost: parsed.amount, description: `Scanned from ${file.name}` });
           }
-          alert(`Successfully parsed ${parsed.document_type} for ${parsed.vendor}! Check your Dashboard.`);
+        } else if (parsed.type === 'INVOICE') {
+          await addInvoice(parsed.metadata);
+          if (parsed.materials && parsed.materials.length > 0) {
+            for (const item of parsed.materials) {
+              await addMaterial(item);
+            }
+          }
+        } else if (parsed.type === 'CO') {
+          await addCO(parsed.metadata);
+          if (parsed.materials && parsed.materials.length > 0) {
+            for (const item of parsed.materials) {
+              await addMaterial(item);
+            }
+          }
         }
+        alert(`Successfully parsed ${parsed.type} for ${parsed.metadata.supplier || 'Vendor'}! Check your Dashboard.`);
       } catch (scanErr) {
         console.error("Scan failed:", scanErr);
+        alert('Could not extract text from document. Ensure it is a valid PDF.');
       }
       
     } catch (error) {
