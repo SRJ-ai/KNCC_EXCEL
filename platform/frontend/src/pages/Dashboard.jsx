@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { usePlatform } from '../context/PlatformContext';
 import { Activity, BarChart2, Package, TrendingUp, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import * as XLSX from 'xlsx';
 import ManualEntryModal from '../components/ManualEntryModal';
 import './Dashboard.css';
 
@@ -64,33 +65,20 @@ export default function Dashboard() {
           </button>
           <button 
             disabled={exporting || !activeProject}
-            onClick={async () => {
+            onClick={() => {
               setExporting(true);
               try {
-                const res = await fetch('/api/export/client-requirements', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    project_name: activeProject.name,
-                    materials,
-                    pos,
-                    cos
-                  })
-                });
-                
-                if (res.ok) {
-                  const blob = await res.blob();
-                  const url = window.URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = `Client_Requirements_${activeProject.name.replace(' ', '_')}.xlsx`;
-                  a.click();
-                } else {
-                  alert("Failed to generate report.");
-                }
+                const wb = XLSX.utils.book_new();
+                const poRows = [['PO #', 'Supplier', 'Amount', 'Status', 'Date'], ...pos.map(p => [p.po_number || p.id, p.supplier || p.vendor, p.amount, p.status, p.date])];
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(poRows), 'POs');
+                const invRows = [['Invoice #', 'Supplier', 'Amount', 'Status', 'Date'], ...invoices.map(i => [i.invoice_number || i.id, i.supplier, i.amount, i.status, i.date])];
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(invRows), 'Invoices');
+                const coRows = [['CO #', 'Description', 'Amount', 'Status'], ...cos.map(c => [c.co_number || c.id, c.description, c.amount || c.cost, c.status])];
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(coRows), 'Change Orders');
+                XLSX.writeFile(wb, `${activeProject.name.replace(/\s+/g, '_')}_Report.xlsx`);
               } catch (err) {
                 console.error(err);
-                alert("Error exporting");
+                alert('Export failed: ' + err.message);
               }
               setExporting(false);
             }}

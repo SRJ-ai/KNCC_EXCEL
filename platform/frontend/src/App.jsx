@@ -23,13 +23,20 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 
 function ProtectedLayout() {
-  const { user, loading } = useAuth();
-  const { activeProject } = usePlatform();
+  const { user, loading: authLoading } = useAuth();
+  const { activeProject, loading: platformLoading } = usePlatform();
   
-  if (loading) return <div style={{ color: 'white', padding: 20 }}>Loading session...</div>;
+  if (authLoading || platformLoading) {
+    return (
+      <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', background: '#09090b', color: '#a1a1aa', flexDirection: 'column', gap: '1rem' }}>
+        <div style={{ width: 40, height: 40, border: '3px solid #3f3f46', borderTop: '3px solid #3B82F6', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+        <span>Loading workspace...</span>
+      </div>
+    );
+  }
   if (!user) return <Navigate to="/login" replace />;
 
-  // If user is logged in but has no project, force onboarding
+  // Only redirect to onboarding if FULLY loaded and still no project
   if (!activeProject && window.location.pathname !== '/onboarding') {
     return <Navigate to="/onboarding" replace />;
   }
