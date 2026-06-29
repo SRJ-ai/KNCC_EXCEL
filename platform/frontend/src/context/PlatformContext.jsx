@@ -14,6 +14,37 @@ export function PlatformProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        // Fetch Project
+        const { data: projData } = await supabase.from('projects').select('*').eq('organization_name', organization.name).single();
+        
+        if (projData) {
+          setActiveProject(projData);
+          
+          // Fetch POs
+          const { data: poData } = await supabase.from('purchase_orders').select('*').eq('project_id', projData.id);
+          if (poData) setPos(poData);
+
+          // Fetch Invoices
+          const { data: invData } = await supabase.from('invoices').select('*').eq('organization_name', organization.name);
+          if (invData) setInvoices(invData);
+
+          // Fetch COs
+          const { data: coData } = await supabase.from('change_orders').select('*').eq('project_id', projData.id);
+          if (coData) setCos(coData);
+
+          // Fetch Documents
+          const { data: docData } = await supabase.from('documents').select('*').eq('project_id', projData.id);
+          if (docData) setDocuments(docData);
+        }
+      } catch (err) {
+        console.error("Failed to fetch platform data", err);
+      }
+      setLoading(false);
+    };
+
     if (user && organization) {
       fetchData();
     } else {
@@ -24,37 +55,6 @@ export function PlatformProvider({ children }) {
       setDocuments([]);
     }
   }, [user, organization]);
-
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      // Fetch Project
-      const { data: projData } = await supabase.from('projects').select('*').eq('organization_name', organization.name).single();
-      
-      if (projData) {
-        setActiveProject(projData);
-        
-        // Fetch POs
-        const { data: poData } = await supabase.from('purchase_orders').select('*').eq('project_id', projData.id);
-        if (poData) setPos(poData);
-
-        // Fetch Invoices
-        const { data: invData } = await supabase.from('invoices').select('*').eq('organization_name', organization.name);
-        if (invData) setInvoices(invData);
-
-        // Fetch COs
-        const { data: coData } = await supabase.from('change_orders').select('*').eq('project_id', projData.id);
-        if (coData) setCos(coData);
-
-        // Fetch Documents
-        const { data: docData } = await supabase.from('documents').select('*').eq('project_id', projData.id);
-        if (docData) setDocuments(docData);
-      }
-    } catch (err) {
-      console.error("Failed to fetch platform data", err);
-    }
-    setLoading(false);
-  };
 
   const createProject = async (projectData) => {
     const newProject = { 
