@@ -6,7 +6,7 @@ import path from 'path';
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   // Fallback: manually load Vercel env file from root if it exists
-  const vercelEnvPath = path.resolve(__dirname, '../../.vercel/.env.production.local');
+  const vercelEnvPath = path.resolve(process.cwd(), '../../.vercel/.env.production.local');
   if (fs.existsSync(vercelEnvPath)) {
     console.log("Loading Vercel env file from root:", vercelEnvPath);
     const envContent = fs.readFileSync(vercelEnvPath, 'utf-8');
