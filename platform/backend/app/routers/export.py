@@ -10,7 +10,7 @@ from openpyxl.utils import get_column_letter
 from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models.mapping import ItemMapping
-from ..services.excel_generator import process_invoices_for_sheet
+from ..services.excel_generator import process_invoices_for_sheet, process_change_orders_for_sheet
 
 router = APIRouter()
 
@@ -372,6 +372,10 @@ async def generate_client_requirements(req: ExportDataRequest, db: Session = Dep
             matched, unmatched = process_invoices_for_sheet(
                 ws, sheet_name, req.invoices, cols, data_ranges, mapping_dict
             )
+
+        # 3. Apply Change Orders (VPOs) to adjust PO/CO Qty
+        if req.cos:
+            process_change_orders_for_sheet(ws, sheet_name, req.cos, cols, data_ranges)
 
         # Update all complex formulas
         del_end_num = max([col_to_num(delivery_start_col)] + [c.column for c in ws[2] if c.value and type(c).__name__ != 'MergedCell'])

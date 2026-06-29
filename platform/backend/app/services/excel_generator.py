@@ -227,3 +227,101 @@ def process_invoices_for_sheet(ws, sheet_name: str, invoices: list, cols: dict, 
                 })
                 
     return matched_items, unmatched_items
+
+def process_change_orders_for_sheet(ws, sheet_name: str, cos: list, cols: dict, data_ranges: list):
+    """
+    Applies Change Orders (VPOs) to the 'PO/CO Qty' column.
+    Uses fuzzy matching to locate the correct row and adds/subtracts the CO qty.
+    """
+    t_col = col_to_num(cols["thickness"])
+    w_col = col_to_num(cols["width"])
+    l_col = col_to_num(cols["length"])
+    type_col = col_to_num(cols["type"])
+    desc_col = col_to_num(cols["material_type"])
+    po_co_qty_col = col_to_num(cols["po_co_qty"])
+    notes_col = col_to_num(cols.get("notes", "BE")) # Fallback if notes not found
+    
+    for co in cos:
+        co_number = co.get("co_number", "Unknown")
+        
+        for item in co.get("line_items", []):
+            co_desc = item.get("description", "").upper()
+            qty = float(item.get("quantity", 0))
+            if qty == 0:
+                continue
+                
+            co_dims = item.get("dimensions", "").strip()
+            co_t, co_w, co_l = None, None, None
+            
+            # Extract dimensions
+            dm = re.match(r'(\d+)\s*[xX]\s*(\d+)\s*[xX]\s*(\d+)', co_dims)
+            if not dm:
+                dm = re.search(r'(\d+)\s*[xX]\s*(\d+)\s*[xX]\s*(\d+)', co_desc)
+                
+            if dm:
+                co_t = int(dm.group(1))
+                co_w = int(dm.group(2))
+                co_l = int(dm.group(3))
+            else:
+                dm_2d = re.search(r'(\d+)\s*[xX]\s*(\d+)', co_desc)
+                if dm_2d:
+                    co_w = int(dm_2d.group(1))
+                    co_l = int(dm_2d.group(2))
+                    
+            if not co_l and "PET 104-5/8" in co_desc:
+                co_l = 9
+            elif not co_l and "PET 116-5/8" in co_desc:
+                co_l = 10
+            
+            co_category = classify_item_category(co_desc, item.get("item_code", ""))
+            
+            best_match = None
+            best_score = 0
+            
+            # Fuzzy match row
+            for start_row, end_row in data_ranges:
+                for r in range(start_row, end_row + 1):
+                    row_type = ws.cell(row=r, column=type_col).value
+                    if not row_type:
+                        continue
+                        
+                    rt_norm = str(row_type).strip().lower()
+                    if rt_norm != co_category and not (rt_norm == "panels" and co_category == "lumber"):
+                        continue
+                        
+                    row_t = ws.cell(row=r, column=t_col).value
+                    row_w = ws.cell(row=r, column=w_col).value
+                    row_l = ws.cell(row=r, column=l_col).value
+                    row_mat = str(ws.cell(row=r, column=desc_col).value or "").upper()
+                    
+                    score = 0
+                    if rt_norm == co_category: score += 10
+                    else: score += 5
+                    
+                    if co_t is not None and row_t is not None and co_t == row_t: score += 5
+                    if co_w is not None and row_w is not None and co_w == row_w: score += 5
+                    if co_l is not None and row_l is not None and co_l == row_l: score += 5
+                    
+                    if "PT" in co_desc and ("PT" in row_mat or "MCA" in row_mat): score += 3
+                    elif "MCA" in co_desc and ("MCA" in row_mat or "PT" in row_mat): score += 3
+                    elif "SYP" in co_desc and "SYP" in row_mat: score += 3
+                    elif "LVL" in co_desc and "LVL" in row_mat: score += 3
+                    elif "OSB" in co_desc and "OSB" in row_mat: score += 3
+                    elif "TREX" in co_desc and "TREX" in row_mat: score += 3
+                    
+                    if score > best_score:
+                        best_score = score
+                        best_match = r
+                        
+            if best_score >= 15 and best_match:
+                # Update PO/CO Qty
+                curr_qty = ws.cell(row=best_match, column=po_co_qty_col).value or 0
+                safe_set_cell(ws, best_match, po_co_qty_col, float(curr_qty) + qty)
+                
+                # Append CO Number to notes
+                curr_notes = ws.cell(row=best_match, column=notes_col).value or ""
+                note_str = f"CO {co_number}: {'+' if qty > 0 else ''}{qty}"
+                if not curr_notes:
+                    safe_set_cell(ws, best_match, notes_col, note_str)
+                else:
+                    safe_set_cell(ws, best_match, notes_col, f"{curr_notes} | {note_str}")
