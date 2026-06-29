@@ -127,7 +127,7 @@ export default function UploadCenter() {
           {uploading || parsing ? <Loader2 size={18} className="animate-spin" /> : 'Browse Files'}
         </button>
       </div>
-      {recentUploads.length > 0 && (
+      {displayDocs.length > 0 && (
         <div className="recent-uploads animate-fade-in delay-200">
           <h3 className="recent-uploads-title">Recent Uploads</h3>
           <div className="upload-list">

@@ -9,12 +9,6 @@ export default function Reconciliation() {
   const [loading, setLoading] = useState(false);
   const [mappings, setMappings] = useState({});
 
-  useEffect(() => {
-    if (activeProject && invoices.length > 0) {
-      fetchUnmatchedItems();
-    }
-  }, [activeProject, invoices, pos]);
-
   const fetchUnmatchedItems = async () => {
     setLoading(true);
     try {
@@ -38,6 +32,12 @@ export default function Reconciliation() {
     }
     setLoading(false);
   };
+
+  useEffect(() => {
+    if (activeProject && invoices.length > 0) {
+      fetchUnmatchedItems();
+    }
+  }, [activeProject, invoices, pos]);
 
   const handleLink = async (invoiceItem) => {
     const materialId = mappings[invoiceItem.description];
