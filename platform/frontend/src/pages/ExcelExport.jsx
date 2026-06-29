@@ -5,71 +5,40 @@ import { usePlatform } from '../context/PlatformContext';
 import './ExcelExport.css';
 
 export default function ExcelExport() {
-  const { activeProject, pos, invoices, cos } = usePlatform();
+  const { activeProject, pos, invoices, cos, materials } = usePlatform();
 
-  const handleExport = () => {
-    // 1. Create a new Workbook
-    const wb = XLSX.utils.book_new();
+  const handleExport = async () => {
+    try {
+      const response = await fetch('/api/export/client-requirements', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          project_name: activeProject?.name || "KNCC Project",
+          materials: materials || [],
+          pos: pos || [],
+          cos: cos || [],
+          invoices: invoices || []
+        })
+      });
 
-    // 2. Prepare the Header / Metadata Rows
-    const companyHeader = [
-      ["[ KNCC LOGO ]", "KNCC Construction - Official Project Report"],
-      [],
-      ["Project Name:", activeProject?.name || "N/A"],
-      ["Location:", activeProject?.location || "N/A"],
-      ["Client:", activeProject?.client || "N/A"],
-      ["Budget:", `$${activeProject?.budget || "0"}`],
-      ["Export Date:", new Date().toLocaleDateString()],
-      []
-    ];
+      if (!response.ok) throw new Error('Export failed');
 
-    // 3. Prepare PO Data
-    const poHeaderRow = ["--- PURCHASE ORDERS ---"];
-    const poColumns = ["PO ID", "Vendor", "Description", "Amount", "Status"];
-    const poData = pos.map(po => [po.id, po.vendor, po.description, po.amount, po.status]);
-
-    // 4. Prepare Invoice Data
-    const invHeaderRow = ["--- INVOICES ---"];
-    const invColumns = ["Invoice ID", "Against PO", "Amount", "Date", "Status"];
-    const invData = invoices.map(inv => [inv.id, inv.poId, inv.amount, inv.date, inv.status]);
-
-    // 5. Prepare CO Data
-    const coHeaderRow = ["--- CHANGE ORDERS ---"];
-    const coColumns = ["CO ID", "Title", "Cost Impact", "Date", "Status", "Description"];
-    const coData = cos.map(co => [co.id, co.title, co.cost, co.date, co.status, co.desc]);
-
-    // Combine all data into one single sheet (Report layout)
-    const finalData = [
-      ...companyHeader,
-      poHeaderRow,
-      poColumns,
-      ...poData,
-      [],
-      invHeaderRow,
-      invColumns,
-      ...invData,
-      [],
-      coHeaderRow,
-      coColumns,
-      ...coData
-    ];
-
-    const ws = XLSX.utils.aoa_to_sheet(finalData);
-
-    // Some simple column width formatting
-    ws['!cols'] = [
-      { wch: 15 }, // A
-      { wch: 30 }, // B
-      { wch: 40 }, // C
-      { wch: 15 }, // D
-      { wch: 15 }, // E
-      { wch: 50 }, // F
-    ];
-
-    XLSX.utils.book_append_sheet(wb, ws, "Project Report");
-
-    // 6. Download the file
-    XLSX.writeFile(wb, `KNCC_Report_${activeProject?.name?.replace(/\s+/g, '_') || 'Project'}.xlsx`);
+      // Handle file download
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Client_Requirements_${activeProject?.name?.replace(/\s+/g, '_') || 'Project'}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Failed to generate export", err);
+      alert("Failed to generate export document.");
+    }
   };
 
   return (

@@ -19,7 +19,15 @@ export function PlatformProvider({ children }) {
       setLoading(true);
       try {
         // Fetch Project
-        const { data: projData } = await supabase.from('projects').select('*').eq('organization_name', organization.name).single();
+        const { data: projData, error: projErr } = await supabase
+          .from('projects')
+          .select('*')
+          .eq('organization_name', organization.name)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        if (projErr) console.error("Error fetching project:", projErr);
         
         if (projData) {
           setActiveProject(projData);
