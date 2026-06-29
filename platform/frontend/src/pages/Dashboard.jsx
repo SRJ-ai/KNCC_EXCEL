@@ -1,35 +1,41 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
+import { usePlatform } from '../context/PlatformContext';
 import { Activity, BarChart2, Package, TrendingUp, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import './Dashboard.css';
 
 export default function Dashboard() {
   const { user } = useAuth();
 
+  const { pos, invoices, cos, documents } = usePlatform();
+
+  const totalPOAmount = pos.reduce((sum, po) => sum + Number(po.amount || 0), 0);
+  const totalCOAmount = cos.reduce((sum, co) => sum + Number(co.cost || 0), 0);
+  
   const kpis = [
-    { title: 'Total Deliveries (This Week)', value: '124', trend: '+14%', isPositive: true, icon: <Package size={20} color="#3B82F6" />, bg: 'rgba(59, 130, 246, 0.1)' },
-    { title: 'Budget Variance', value: '-$12,450', trend: '-2.4%', isPositive: true, icon: <TrendingUp size={20} color="#10B981" />, bg: 'rgba(16, 185, 129, 0.1)' },
-    { title: 'Active Change Orders', value: '7', trend: '+2', isPositive: false, icon: <AlertCircle size={20} color="#F59E0B" />, bg: 'rgba(245, 158, 11, 0.1)' },
-    { title: 'Site Reports Logged', value: '42', trend: '100%', isPositive: true, icon: <CheckCircle2 size={20} color="#8B5CF6" />, bg: 'rgba(139, 92, 246, 0.1)' },
+    { title: 'Total POs (Live)', value: pos.length.toString(), trend: 'Active', isPositive: true, icon: <Package size={20} color="#3B82F6" />, bg: 'rgba(59, 130, 246, 0.1)' },
+    { title: 'Total Spend ($)', value: `$${totalPOAmount.toLocaleString()}`, trend: 'In Budget', isPositive: true, icon: <TrendingUp size={20} color="#10B981" />, bg: 'rgba(16, 185, 129, 0.1)' },
+    { title: 'CO Impact ($)', value: `$${totalCOAmount.toLocaleString()}`, trend: `${cos.length} COs`, isPositive: false, icon: <AlertCircle size={20} color="#F59E0B" />, bg: 'rgba(245, 158, 11, 0.1)' },
+    { title: 'Cloud Documents', value: documents.length.toString(), trend: 'Live Sync', isPositive: true, icon: <CheckCircle2 size={20} color="#8B5CF6" />, bg: 'rgba(139, 92, 246, 0.1)' },
   ];
 
-  const mockChartData = [
-    { label: 'Mon', height: '40%' },
-    { label: 'Tue', height: '65%' },
-    { label: 'Wed', height: '45%' },
-    { label: 'Thu', height: '80%' },
-    { label: 'Fri', height: '55%' },
-    { label: 'Sat', height: '30%' },
-    { label: 'Sun', height: '20%' },
+  // Create actual chart data from POs
+  const chartData = pos.slice(-7).map((po, index) => ({
+    name: `PO-${index + 1}`,
+    amount: Number(po.amount) || 0
+  }));
+
+  // Map recent items to the activity feed
+  const allActivities = [
+    ...pos.map(po => ({ action: `PO Created: ${po.vendor} - $${po.amount}`, time: new Date(po.created_at || new Date()).toLocaleString(), color: '#3B82F6' })),
+    ...cos.map(co => ({ action: `CO Submitted: ${co.title} - $${co.cost}`, time: new Date(co.created_at || new Date()).toLocaleString(), color: '#F59E0B' })),
+    ...documents.map(doc => ({ action: `Document Uploaded: ${doc.file_name}`, time: new Date(doc.created_at || new Date()).toLocaleString(), color: '#8B5CF6' })),
+    ...invoices.map(inv => ({ action: `Invoice Processed: $${inv.amount}`, time: new Date(inv.created_at || new Date()).toLocaleString(), color: '#10B981' }))
   ];
 
-  const activities = [
-    { id: 1, action: 'Delivery #4892 received at Gate B', time: '10 mins ago', color: '#10B981' },
-    { id: 2, action: 'Change Order #CO-004 approved by PM', time: '1 hour ago', color: '#F59E0B' },
-    { id: 3, action: 'Concrete pour #4 completed', time: '3 hours ago', color: '#3B82F6' },
-    { id: 4, action: 'Safety incident reported in Zone C', time: '5 hours ago', color: '#EF4444' },
-    { id: 5, action: 'Daily Site Report generated', time: 'Yesterday, 5:00 PM', color: '#8B5CF6' },
-  ];
+  // Sort by newest first and take top 5
+  const activities = allActivities.sort((a, b) => new Date(b.time) - new Date(a.time)).slice(0, 5);
 
   return (
     <div className="dashboard-container">
@@ -72,14 +78,22 @@ export default function Dashboard() {
       <div className="dashboard-main-grid">
         {/* Main Chart Panel */}
         <div className="panel">
-          <div className="panel-title">Material Deliveries vs Schedule</div>
-          <div className="mock-chart">
-            {mockChartData.map((data, index) => (
-              <div key={index} className="chart-bar-container">
-                <div className="chart-bar" style={{ height: data.height }}></div>
-                <span className="chart-label">{data.label}</span>
+          <div className="panel-title">Recent Purchase Orders Amount ($)</div>
+          <div className="live-chart" style={{ height: '250px', marginTop: '20px' }}>
+            {chartData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData}>
+                  <XAxis dataKey="name" stroke="#a1a1aa" fontSize={12} tickLine={false} axisLine={false} />
+                  <YAxis stroke="#a1a1aa" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `$${val}`} />
+                  <Tooltip cursor={{fill: 'rgba(255,255,255,0.05)'}} contentStyle={{ background: '#27272a', border: '1px solid #3f3f46', borderRadius: '8px', color: '#fff' }} />
+                  <Bar dataKey="amount" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: '#a1a1aa' }}>
+                No PO data available to graph. Add some POs first!
               </div>
-            ))}
+            )}
           </div>
         </div>
 
@@ -87,8 +101,8 @@ export default function Dashboard() {
         <div className="panel">
           <div className="panel-title">Recent Activity</div>
           <div className="activity-feed">
-            {activities.map(activity => (
-              <div key={activity.id} className="activity-item">
+            {activities.length > 0 ? activities.map((activity, idx) => (
+              <div key={idx} className="activity-item">
                 <div className="activity-dot" style={{ background: activity.color }}></div>
                 <div className="activity-content">
                   <p>{activity.action}</p>
@@ -98,7 +112,9 @@ export default function Dashboard() {
                   </span>
                 </div>
               </div>
-            ))}
+            )) : (
+              <div style={{ color: '#a1a1aa', padding: '1rem' }}>No recent activity.</div>
+            )}
           </div>
         </div>
       </div>

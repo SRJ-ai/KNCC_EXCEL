@@ -1,71 +1,107 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useAuth } from './AuthContext';
+import { supabase } from '../supabaseClient';
 
 const PlatformContext = createContext(null);
 
 export function PlatformProvider({ children }) {
-  const [activeProject, setActiveProject] = useState(() => {
-    const saved = localStorage.getItem('activeProject');
-    return saved ? JSON.parse(saved) : null;
-  });
-
-  const [documents, setDocuments] = useState(() => {
-    const saved = localStorage.getItem('documents');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [pos, setPos] = useState(() => {
-    const saved = localStorage.getItem('pos');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [invoices, setInvoices] = useState(() => {
-    const saved = localStorage.getItem('invoices');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [cos, setCos] = useState(() => {
-    const saved = localStorage.getItem('cos');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const { user, organization } = useAuth();
+  const [activeProject, setActiveProject] = useState(null);
+  const [pos, setPos] = useState([]);
+  const [invoices, setInvoices] = useState([]);
+  const [cos, setCos] = useState([]);
+  const [documents, setDocuments] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    localStorage.setItem('activeProject', JSON.stringify(activeProject));
-  }, [activeProject]);
+    if (user && organization) {
+      fetchData();
+    } else {
+      setActiveProject(null);
+      setPos([]);
+      setInvoices([]);
+      setCos([]);
+      setDocuments([]);
+    }
+  }, [user, organization]);
 
-  useEffect(() => {
-    localStorage.setItem('documents', JSON.stringify(documents));
-  }, [documents]);
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      // Fetch Project
+      const { data: projData } = await supabase.from('projects').select('*').eq('organization_name', organization.name).single();
+      
+      if (projData) {
+        setActiveProject(projData);
+        
+        // Fetch POs
+        const { data: poData } = await supabase.from('purchase_orders').select('*').eq('project_id', projData.id);
+        if (poData) setPos(poData);
 
-  useEffect(() => {
-    localStorage.setItem('pos', JSON.stringify(pos));
-  }, [pos]);
+        // Fetch Invoices
+        const { data: invData } = await supabase.from('invoices').select('*').eq('organization_name', organization.name);
+        if (invData) setInvoices(invData);
 
-  useEffect(() => {
-    localStorage.setItem('invoices', JSON.stringify(invoices));
-  }, [invoices]);
+        // Fetch COs
+        const { data: coData } = await supabase.from('change_orders').select('*').eq('project_id', projData.id);
+        if (coData) setCos(coData);
 
-  useEffect(() => {
-    localStorage.setItem('cos', JSON.stringify(cos));
-  }, [cos]);
-
-  const createProject = (projectData) => {
-    setActiveProject({ id: Date.now().toString(), ...projectData });
+        // Fetch Documents
+        const { data: docData } = await supabase.from('documents').select('*').eq('project_id', projData.id);
+        if (docData) setDocuments(docData);
+      }
+    } catch (err) {
+      console.error("Failed to fetch platform data", err);
+    }
+    setLoading(false);
   };
 
-  const addDocument = (doc) => {
-    setDocuments(prev => [...prev, { id: Date.now().toString(), date: new Date().toISOString(), ...doc }]);
+  const createProject = async (projectData) => {
+    const newProject = { 
+      ...projectData, 
+      organization_name: organization.name 
+    };
+    const { data } = await supabase.from('projects').insert([newProject]).select().single();
+    if (data) setActiveProject(data);
   };
 
-  const addPO = (po) => {
-    setPos(prev => [...prev, { id: Date.now().toString(), date: new Date().toISOString(), ...po }]);
+  const addPO = async (poData) => {
+    const newPO = { 
+      ...poData, 
+      project_id: activeProject.id, 
+      organization_name: organization.name 
+    };
+    const { data } = await supabase.from('purchase_orders').insert([newPO]).select().single();
+    if (data) setPos(prev => [...prev, data]);
   };
 
-  const addInvoice = (invoice) => {
-    setInvoices(prev => [...prev, { id: Date.now().toString(), date: new Date().toISOString(), ...invoice }]);
+  const addInvoice = async (invoiceData) => {
+    const newInvoice = { 
+      ...invoiceData, 
+      organization_name: organization.name 
+    };
+    const { data } = await supabase.from('invoices').insert([newInvoice]).select().single();
+    if (data) setInvoices(prev => [...prev, data]);
   };
 
-  const addCO = (co) => {
-    setCos(prev => [...prev, { id: Date.now().toString(), date: new Date().toISOString(), ...co }]);
+  const addCO = async (coData) => {
+    const newCO = { 
+      ...coData, 
+      project_id: activeProject.id, 
+      organization_name: organization.name 
+    };
+    const { data } = await supabase.from('change_orders').insert([newCO]).select().single();
+    if (data) setCos(prev => [...prev, data]);
+  };
+
+  const addDocument = async (docData) => {
+    const newDoc = { 
+      ...docData, 
+      project_id: activeProject.id, 
+      organization_name: organization.name 
+    };
+    const { data } = await supabase.from('documents').insert([newDoc]).select().single();
+    if (data) setDocuments(prev => [...prev, data]);
   };
 
   return (
@@ -74,7 +110,8 @@ export function PlatformProvider({ children }) {
       documents, addDocument,
       pos, addPO,
       invoices, addInvoice,
-      cos, addCO
+      cos, addCO,
+      loading
     }}>
       {children}
     </PlatformContext.Provider>

@@ -1,32 +1,58 @@
-import React, { useRef } from 'react';
-import { UploadCloud, FileText, FileSpreadsheet, CheckCircle2 } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { UploadCloud, FileText, FileSpreadsheet, CheckCircle2, Loader2 } from 'lucide-react';
 import { usePlatform } from '../context/PlatformContext';
+import { useAuth } from '../context/AuthContext';
+import { supabase } from '../supabaseClient';
 import './UploadCenter.css';
 
 export default function UploadCenter() {
   const { documents, addDocument } = usePlatform();
+  const { user } = useAuth();
   const fileInputRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
 
   // Fallback to initial mock data if no documents exist in state yet
   const displayDocs = documents.length > 0 ? documents : [
-    { id: 1, name: 'Structural_Plans_v2.pdf', size: '14.2 MB', type: 'pdf', date: 'Today, 10:45 AM' },
-    { id: 2, name: 'Material_Takeoff_July.xlsx', size: '2.4 MB', type: 'excel', date: 'Yesterday, 3:20 PM' },
-    { id: 3, name: 'Site_Safety_Guidelines.pdf', size: '8.1 MB', type: 'pdf', date: 'Mon, 9:00 AM' },
+    { id: 1, file_name: 'Structural_Plans_v2.pdf', size: '14.2 MB', type: 'pdf', created_at: new Date().toISOString() }
   ];
 
-  const handleFileUpload = (e) => {
+  const handleFileUpload = async (e) => {
     const file = e.target.files[0];
-    if (file) {
+    if (!file) return;
+
+    try {
+      setUploading(true);
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random()}.${fileExt}`;
+      const filePath = `${user?.id}/${fileName}`;
+
+      // 1. Upload to Supabase Storage Bucket
+      const { data, error } = await supabase.storage
+        .from('documents')
+        .upload(filePath, file);
+
+      if (error) {
+        throw error;
+      }
+
+      // 2. Save metadata to Postgres via Context
       const isPdf = file.name.toLowerCase().endsWith('.pdf');
       const type = isPdf ? 'pdf' : 'excel';
       const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
       
-      addDocument({
-        name: file.name,
+      await addDocument({
+        file_name: file.name,
+        file_path: data.path,
         size: `${sizeMB} MB`,
         type: type,
-        date: 'Just now'
+        uploader: user?.email || 'Unknown'
       });
+      
+    } catch (error) {
+      console.error('Error uploading file:', error.message);
+      alert('Upload failed! Make sure the "documents" bucket exists and is public.');
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -46,9 +72,11 @@ export default function UploadCenter() {
           accept=".pdf,.xlsx,.csv,.dwg"
         />
         <UploadCloud size={64} className="drop-icon" />
-        <h3 className="drop-title">Select a file or drag and drop here</h3>
+        <h3 className="drop-title">{uploading ? 'Uploading to cloud...' : 'Select a file or drag and drop here'}</h3>
         <p className="drop-desc">PDF, XLSX, CSV, or DWG, file size no more than 50MB</p>
-        <button className="browse-btn" onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}>Browse Files</button>
+        <button disabled={uploading} className="browse-btn" onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}>
+          {uploading ? <Loader2 size={18} className="animate-spin" /> : 'Browse Files'}
+        </button>
       </div>
 
       <h3 className="recent-uploads-title">Recent Uploads</h3>
@@ -60,8 +88,8 @@ export default function UploadCenter() {
                 {file.type === 'pdf' ? <FileText size={24} /> : <FileSpreadsheet size={24} />}
               </div>
               <div className="file-details">
-                <h4>{file.name}</h4>
-                <p>{file.size} • {file.date}</p>
+                <h4>{file.file_name || file.name}</h4>
+                <p>{file.size} • {new Date(file.created_at || file.date).toLocaleDateString()}</p>
               </div>
             </div>
             <div className="upload-status">
