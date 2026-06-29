@@ -42,10 +42,10 @@ export default function Dashboard() {
 
   return (
     <div className="dashboard-container">
-      <div className="dashboard-header">
+      <div className="dashboard-header animate-fade-in">
         <div>
-          <h1 className="dashboard-title">Welcome back, {user?.name || 'Engineer'}</h1>
-          <p className="dashboard-subtitle">Here is what is happening on site today.</p>
+          <h1 className="dashboard-title page-title">Welcome back, {user?.name || 'Engineer'}</h1>
+          <p className="dashboard-subtitle page-subtitle">Here is what is happening on site today.</p>
         </div>
         <div style={{ display: 'flex', gap: '1rem' }}>
           <button 
@@ -115,7 +115,7 @@ export default function Dashboard() {
       {/* KPI Row */}
       <div className="kpi-grid">
         {kpis.map((kpi, index) => (
-          <div key={index} className="kpi-card">
+          <div key={index} className={`kpi-card animate-fade-in delay-${index * 100}`}>
             <div className="kpi-header">
               <span className="kpi-title">{kpi.title}</span>
               <div className="kpi-icon" style={{ background: kpi.bg }}>
@@ -132,7 +132,7 @@ export default function Dashboard() {
 
       <div className="dashboard-main-grid">
         {/* Main Chart Panel */}
-        <div className="panel">
+        <div className="panel animate-fade-in delay-200">
           <div className="panel-title">Recent Purchase Orders Amount ($)</div>
           <div className="live-chart" style={{ height: '250px', marginTop: '20px' }}>
             {chartData.length > 0 ? (
@@ -153,7 +153,7 @@ export default function Dashboard() {
         </div>
 
         {/* Activity Feed Panel */}
-        <div className="panel">
+        <div className="panel animate-fade-in delay-300">
           <div className="panel-title">Recent Activity</div>
           <div className="activity-feed">
             {activities.length > 0 ? activities.map((activity, idx) => (

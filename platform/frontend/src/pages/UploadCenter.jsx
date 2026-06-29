@@ -104,10 +104,10 @@ export default function UploadCenter() {
   };
 
   return (
-    <div className="upload-container">
+    <div className="upload-container animate-fade-in">
       <div className="upload-header">
-        <h1 className="upload-title">Upload Center</h1>
-        <p className="upload-subtitle">Drag and drop construction plans, Excel data, or specifications.</p>
+        <h1 className="upload-title page-title">Upload Center</h1>
+        <p className="upload-subtitle page-subtitle">Upload Purchase Orders, Invoices, and Change Orders here.</p>
       </div>
 
       <div className="drop-zone" onClick={() => fileInputRef.current?.click()}>
@@ -128,13 +128,6 @@ export default function UploadCenter() {
         </button>
       </div>
 
-      <h3 className="recent-uploads-title">Recent Uploads</h3>
-      <div className="upload-list">
-        {displayDocs.map(file => (
-          <div key={file.id} className="upload-item">
-            <div className="upload-info">
-              <div className={`file-icon ${file.type === 'pdf' ? 'file-pdf' : 'file-excel'}`}>
-                {file.type === 'pdf' ? <FileText size={24} /> : <FileSpreadsheet size={24} />}
               </div>
               <div className="file-details">
                 <h4>{file.file_name || file.name}</h4>

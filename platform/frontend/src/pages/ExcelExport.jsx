@@ -42,11 +42,11 @@ export default function ExcelExport() {
   };
 
   return (
-    <div className="export-container">
+    <div className="export-container animate-fade-in">
       <div className="export-card">
         <FileSpreadsheet size={64} className="export-icon" />
-        <h1 className="export-title">Generate Master Excel Report</h1>
-        <p className="export-desc">
+        <h1 className="export-title page-title">Generate Master Excel Report</h1>
+        <p className="export-desc page-subtitle" style={{ margin: '0 auto 2.5rem auto' }}>
           Download a comprehensive, formatting-preserved Excel document containing all 
           Purchase Orders, Invoices, and Change Orders for this project. 
           The document will include the KNCC logo placeholder, company name, and project metadata in the header.
@@ -56,7 +56,7 @@ export default function ExcelExport() {
           <Download size={24} /> Download .xlsx
         </button>
 
-        <div className="data-summary">
+        <div className="data-summary animate-fade-in delay-200">
           <div className="summary-item">
             <span className="summary-label">POs Tracked</span>
             <span className="summary-value">{pos.length}</span>

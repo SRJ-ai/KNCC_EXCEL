@@ -69,18 +69,18 @@ export default function Reconciliation() {
   }));
 
   return (
-    <div className="recon-container">
+    <div className="recon-container animate-fade-in">
       <div className="recon-header">
         <div>
-          <h1 className="recon-title">Invoice Reconciliation</h1>
-          <p style={{ color: '#a1a1aa', margin: 0 }}>Map unmatched invoice line items to their original Purchase Order materials.</p>
+          <h1 className="recon-title page-title">Invoice Reconciliation</h1>
+          <p className="page-subtitle" style={{ color: '#a1a1aa', margin: 0 }}>Map unmatched invoice line items to their original Purchase Order materials.</p>
         </div>
         <button onClick={fetchUnmatchedItems} style={{ padding: '0.75rem 1.5rem', background: '#3B82F6', border: 'none', borderRadius: '6px', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>
           {loading ? 'Scanning...' : 'Scan for Unmatched Items'}
         </button>
       </div>
 
-      <div className="recon-stats">
+      <div className="recon-stats animate-fade-in delay-100">
         <div className="stat-box" style={{ borderColor: unmatchedItems.length > 0 ? '#F59E0B' : '#10B981' }}>
           <div className="stat-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             {unmatchedItems.length > 0 ? <AlertTriangle size={18} color="#F59E0B" /> : <CheckCircle size={18} color="#10B981" />}
@@ -90,7 +90,7 @@ export default function Reconciliation() {
         </div>
       </div>
 
-      <div className="recon-table-container">
+      <div className="recon-table-container animate-fade-in delay-200">
         <table className="recon-table">
           <thead>
             <tr>

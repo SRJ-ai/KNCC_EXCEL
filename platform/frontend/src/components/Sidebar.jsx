@@ -21,24 +21,30 @@ const Sidebar = () => {
     <div
       className="glass-panel"
       style={{
-        width: '240px',
+        width: '260px',
         display: 'flex',
         flexDirection: 'column',
-        padding: '24px 16px',
+        padding: '32px 20px',
         borderRight: '1px solid var(--glass-border)',
         flexShrink: 0,
-        background: 'rgba(9, 9, 11, 0.8)',
-        zIndex: 100
+        background: 'rgba(5, 5, 5, 0.4)',
+        zIndex: 100,
+        boxShadow: '4px 0 24px rgba(0,0,0,0.5)',
+        borderTop: 'none',
+        borderBottom: 'none',
+        borderLeft: 'none',
+        borderRadius: 0
       }}
     >
       {/* Logo */}
-      <div style={{ marginBottom: '32px', paddingLeft: '8px', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-        <img src={logo} alt="KNCC Logo" style={{ width: '32px', height: '32px', borderRadius: '4px', objectFit: 'contain' }} />
-        <div>
-          <div style={{ fontSize: '18px', fontWeight: 800, color: '#fff', fontFamily: 'Outfit', letterSpacing: '0.05em' }}>
+      <div style={{ marginBottom: '40px', paddingLeft: '8px', display: 'flex', alignItems: 'center', gap: '1rem', position: 'relative' }}>
+        <div style={{ position: 'absolute', width: '40px', height: '40px', background: 'var(--accent-purple)', filter: 'blur(20px)', opacity: 0.5, zIndex: 0 }}></div>
+        <img src={logo} alt="KNCC Logo" style={{ width: '36px', height: '36px', borderRadius: '8px', objectFit: 'contain', zIndex: 1, boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }} />
+        <div style={{ zIndex: 1 }}>
+          <div style={{ fontSize: '20px', fontWeight: 800, color: '#fff', fontFamily: 'Outfit', letterSpacing: '0.08em', textShadow: '0 0 10px rgba(255,255,255,0.3)' }}>
             KNCC
           </div>
-          <div style={{ fontSize: '11px', color: 'var(--accent-cyan)', letterSpacing: '1px', textTransform: 'uppercase', fontWeight: 600 }}>
+          <div style={{ fontSize: '10px', color: 'var(--accent-cyan)', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 700, marginTop: '2px' }}>
             Enterprise
           </div>
         </div>
@@ -65,18 +71,19 @@ const Sidebar = () => {
 };
 
 const navStyle = ({ isActive }) => ({
-  padding: '12px 16px',
+  padding: '14px 18px',
   textDecoration: 'none',
   color: isActive ? '#fff' : 'var(--text-secondary)',
-  backgroundColor: isActive ? 'rgba(139, 92, 246, 0.15)' : 'transparent',
-  borderRadius: '12px',
-  transition: 'all 0.2s ease',
+  backgroundColor: isActive ? 'rgba(147, 51, 234, 0.15)' : 'transparent',
+  borderRadius: '14px',
+  transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
   border: '1px solid',
-  borderColor: isActive ? 'rgba(139, 92, 246, 0.3)' : 'transparent',
+  borderColor: isActive ? 'rgba(147, 51, 234, 0.4)' : 'transparent',
   display: 'flex',
   alignItems: 'center',
-  gap: '12px',
-  boxShadow: isActive ? '0 4px 12px rgba(139, 92, 246, 0.1)' : 'none'
+  gap: '14px',
+  boxShadow: isActive ? '0 4px 20px rgba(147, 51, 234, 0.2), inset 0 0 10px rgba(147, 51, 234, 0.1)' : 'none',
+  transform: isActive ? 'scale(1.02)' : 'scale(1)',
 });
 
 export default Sidebar;

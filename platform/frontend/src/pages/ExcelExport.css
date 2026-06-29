@@ -9,16 +9,27 @@
 }
 
 .export-card {
-  background: rgba(24, 24, 27, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 12px;
-  padding: 3rem;
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  padding: 4rem 3rem;
   margin-top: 2rem;
+  box-shadow: var(--glass-shadow);
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.export-card:hover {
+  border-color: var(--glass-border-highlight);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  transform: translateY(-2px);
 }
 
 .export-icon {
-  color: #10B981;
+  color: var(--accent-green);
   margin-bottom: 1.5rem;
+  filter: drop-shadow(0 0 12px rgba(16, 185, 129, 0.6));
 }
 
 .export-title {
@@ -35,23 +46,42 @@
 }
 
 .export-btn {
-  background: linear-gradient(135deg, #10B981, #059669);
+  background: linear-gradient(135deg, var(--accent-green) 0%, #059669 100%);
   border: none;
-  border-radius: 6px;
-  padding: 1rem 3rem;
+  border-radius: 12px;
+  padding: 1.2rem 3.5rem;
   color: #fff;
-  font-size: 1.1rem;
-  font-weight: 600;
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
   cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   display: inline-flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 1rem;
+  box-shadow: 0 4px 20px rgba(16, 185, 129, 0.4);
+  position: relative;
+  overflow: hidden;
+}
+
+.export-btn::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -100%;
+  width: 50%; height: 100%;
+  background: linear-gradient(to right, transparent, rgba(255,255,255,0.4), transparent);
+  transform: skewX(-20deg);
+  transition: 0.6s;
+}
+
+.export-btn:hover::after {
+  left: 150%;
 }
 
 .export-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 20px rgba(16, 185, 129, 0.3);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 30px rgba(16, 185, 129, 0.6);
 }
 
 .data-summary {
@@ -76,7 +106,8 @@
 
 .summary-value {
   font-family: 'Outfit', sans-serif;
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: #3B82F6;
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  text-shadow: 0 0 15px rgba(255, 255, 255, 0.3);
 }

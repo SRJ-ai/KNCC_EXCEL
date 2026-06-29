@@ -26,11 +26,20 @@
 }
 
 .stat-box {
-  background: rgba(24, 24, 27, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 12px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
   padding: 1.5rem;
   flex: 1;
+  box-shadow: var(--glass-shadow);
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.stat-box:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.4);
 }
 
 .stat-label {
@@ -50,10 +59,12 @@
 .stat-value.under { color: #10B981; }
 
 .recon-table-container {
-  background: rgba(24, 24, 27, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 12px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
   overflow: hidden;
+  box-shadow: var(--glass-shadow);
 }
 
 .recon-table {
@@ -68,16 +79,20 @@
 }
 
 .recon-table th {
-  background: rgba(0, 0, 0, 0.2);
-  color: #a1a1aa;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-secondary);
   font-weight: 600;
   font-size: 0.85rem;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
+}
+
+.recon-table tr {
+  transition: background 0.2s ease;
 }
 
 .recon-table tr:hover {
-  background: rgba(255, 255, 255, 0.02);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .bar-wrapper {

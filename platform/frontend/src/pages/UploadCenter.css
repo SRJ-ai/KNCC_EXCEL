@@ -23,24 +23,42 @@
 }
 
 .drop-zone {
-  border: 2px dashed rgba(59, 130, 246, 0.5);
-  border-radius: 12px;
+  border: 2px dashed rgba(6, 182, 212, 0.4);
+  border-radius: 20px;
   padding: 4rem 2rem;
   text-align: center;
-  background: rgba(24, 24, 27, 0.4);
-  transition: all 0.3s ease;
+  background: rgba(6, 182, 212, 0.02);
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   cursor: pointer;
-  margin-bottom: 2rem;
+  margin-bottom: 2.5rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.drop-zone::before {
+  content: '';
+  position: absolute;
+  top: 0; left: -100%;
+  width: 50%; height: 100%;
+  background: linear-gradient(to right, transparent, rgba(6, 182, 212, 0.1), transparent);
+  transform: skewX(-20deg);
+  transition: 0.7s;
+}
+
+.drop-zone:hover::before {
+  left: 150%;
 }
 
 .drop-zone:hover {
-  background: rgba(59, 130, 246, 0.05);
-  border-color: #3B82F6;
+  background: rgba(6, 182, 212, 0.08);
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 30px rgba(6, 182, 212, 0.2), inset 0 0 20px rgba(6, 182, 212, 0.1);
 }
 
 .drop-icon {
   margin-bottom: 1.5rem;
-  color: #3B82F6;
+  color: var(--accent-cyan);
+  filter: drop-shadow(0 0 8px rgba(6, 182, 212, 0.5));
 }
 
 .drop-title {
@@ -56,18 +74,21 @@
 }
 
 .browse-btn {
-  background: #3B82F6;
+  background: linear-gradient(135deg, var(--accent-cyan) 0%, #0284c7 100%);
   color: #fff;
   border: none;
-  padding: 0.75rem 2rem;
-  border-radius: 6px;
+  padding: 0.85rem 2.5rem;
+  border-radius: 12px;
+  font-family: 'Outfit', sans-serif;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(6, 182, 212, 0.3);
 }
 
 .browse-btn:hover {
-  background: #2563EB;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(6, 182, 212, 0.5);
 }
 
 .recent-uploads-title {
@@ -89,10 +110,18 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: rgba(24, 24, 27, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
   padding: 1rem 1.5rem;
-  border-radius: 8px;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+.upload-item:hover {
+  transform: translateX(4px);
+  border-color: var(--glass-border-highlight);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
 }
 
 .upload-info {
