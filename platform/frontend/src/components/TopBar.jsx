@@ -1,80 +1,116 @@
 import React from 'react';
-import { useProject } from '../context/ProjectContext';
-import { Bell, Search, UserCircle, Settings } from 'lucide-react';
+import { usePlatform } from '../context/PlatformContext';
+import { useAuth } from '../context/AuthContext';
+import { Bell, Search, Settings, LogOut, User } from 'lucide-react';
 
 const TopBar = () => {
-  const { projects, activeProject, setActiveProject } = useProject();
+  const { activeProject, isDemoMode } = usePlatform();
+  const { user, logout } = useAuth();
 
   return (
-    <div
-      className="glass-panel"
-      style={{
-        height: '70px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0 32px',
-        borderBottom: '1px solid var(--glass-border)',
-        flexShrink: 0,
-        background: 'rgba(24, 24, 27, 0.6)',
-        backdropFilter: 'blur(20px)',
-        zIndex: 90
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-        
-        {/* Project Selector */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'rgba(0,0,0,0.2)', padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
-          <span style={{ color: 'var(--text-secondary)', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600 }}>Project</span>
-          <select
-            value={activeProject?.id || ''}
-            onChange={e => {
-              const proj = projects.find(p => p.id === parseInt(e.target.value));
-              if (proj) setActiveProject(proj);
-            }}
-            style={{
-              background: 'transparent',
-              color: '#fff',
-              border: 'none',
-              outline: 'none',
-              fontWeight: 600,
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontFamily: 'Inter',
-              appearance: 'none',
-              paddingRight: '16px'
-            }}
-          >
-            {projects.map(p => (
-              <option key={p.id} value={p.id} style={{ background: '#18181b' }}>{p.name}</option>
-            ))}
-          </select>
+    <div style={{
+      height: '60px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: '0 24px',
+      borderBottom: '1px solid #111',
+      flexShrink: 0,
+      background: '#000',
+      position: 'fixed',
+      top: 0,
+      left: '240px',
+      right: 0,
+      zIndex: 90,
+    }}>
+      {/* Left — Project */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '8px',
+          background: '#0a0a0a', padding: '5px 12px',
+          borderRadius: '8px', border: '1px solid #1a1a1a'
+        }}>
+          <span style={{ color: '#333', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600 }}>
+            Project
+          </span>
+          <span style={{ color: '#e4e4e7', fontWeight: 600, fontSize: '13px' }}>
+            {activeProject?.name || 'No Project'}
+          </span>
+          {isDemoMode && (
+            <span style={{
+              background: 'rgba(245,158,11,0.1)', color: '#F59E0B',
+              borderRadius: '6px', padding: '1px 6px',
+              fontSize: '10px', fontWeight: 700, letterSpacing: '0.05em'
+            }}>DEMO</span>
+          )}
         </div>
-
-        {/* Project Metadata */}
-        {activeProject && (
-          <div style={{ display: 'flex', gap: '16px' }}>
-            <span style={{ fontSize: '12px', background: 'rgba(139, 92, 246, 0.1)', padding: '4px 10px', borderRadius: '20px', color: '#A78BFA' }}>
-              Job ID: {activeProject.job_number}
-            </span>
-            <span style={{ fontSize: '12px', background: 'rgba(6, 182, 212, 0.1)', padding: '4px 10px', borderRadius: '20px', color: '#67e8f9' }}>
-              Tax Rate: {((activeProject.tax_rate - 1) * 100).toFixed(0)}%
-            </span>
-          </div>
+        {activeProject?.status && (
+          <span style={{
+            fontSize: '11px',
+            background: activeProject.status === 'In Progress' ? 'rgba(16,185,129,0.1)' : 'rgba(100,100,100,0.1)',
+            padding: '3px 10px', borderRadius: '20px',
+            color: activeProject.status === 'In Progress' ? '#10B981' : '#666'
+          }}>
+            {activeProject.status}
+          </span>
         )}
       </div>
 
-      {/* Right Actions */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '20px', color: 'var(--text-secondary)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(0,0,0,0.2)', padding: '8px 16px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.05)' }}>
-          <Search size={16} />
-          <input type="text" placeholder="Search workspace..." style={{ background: 'transparent', border: 'none', color: '#fff', outline: 'none', marginLeft: '8px', fontSize: '13px', width: '200px' }} />
+      {/* Right — Search + Actions */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <div style={{
+          display: 'flex', alignItems: 'center',
+          background: '#0a0a0a', padding: '7px 14px',
+          borderRadius: '8px', border: '1px solid #1a1a1a', gap: '8px'
+        }}>
+          <Search size={14} style={{ color: '#333' }} />
+          <input
+            type="text"
+            placeholder="Search workspace..."
+            style={{
+              background: 'transparent', border: 'none', color: '#aaa',
+              outline: 'none', fontSize: '13px', width: '180px'
+            }}
+          />
         </div>
-        
-        <div style={{ display: 'flex', gap: '16px', cursor: 'pointer' }}>
-          <Bell size={20} style={{ transition: 'color 0.2s' }} onMouseOver={e => e.currentTarget.style.color = '#fff'} onMouseOut={e => e.currentTarget.style.color = 'var(--text-secondary)'} />
-          <Settings size={20} style={{ transition: 'color 0.2s' }} onMouseOver={e => e.currentTarget.style.color = '#fff'} onMouseOut={e => e.currentTarget.style.color = 'var(--text-secondary)'} />
-          <UserCircle size={20} style={{ transition: 'color 0.2s' }} onMouseOver={e => e.currentTarget.style.color = '#fff'} onMouseOut={e => e.currentTarget.style.color = 'var(--text-secondary)'} />
+
+        <div style={{ display: 'flex', gap: '14px', color: '#333', cursor: 'pointer', alignItems: 'center' }}>
+          <Bell size={18} style={{ transition: 'color 0.15s' }}
+            onMouseOver={e => e.currentTarget.style.color = '#fff'}
+            onMouseOut={e => e.currentTarget.style.color = '#333'}
+          />
+          <Settings size={18} style={{ transition: 'color 0.15s' }}
+            onMouseOver={e => e.currentTarget.style.color = '#fff'}
+            onMouseOut={e => e.currentTarget.style.color = '#333'}
+          />
+        </div>
+
+        {/* User + Logout */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '8px',
+            background: '#0a0a0a', padding: '5px 10px',
+            borderRadius: '8px', border: '1px solid #1a1a1a'
+          }}>
+            <User size={14} style={{ color: '#555' }} />
+            <span style={{ fontSize: '12px', color: '#aaa', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {user?.name || user?.email || 'User'}
+            </span>
+          </div>
+          <button
+            onClick={logout}
+            title="Logout"
+            style={{
+              background: '#0a0a0a', border: '1px solid #1a1a1a',
+              borderRadius: '8px', padding: '7px 10px',
+              color: '#555', cursor: 'pointer', display: 'flex',
+              alignItems: 'center', transition: 'all 0.15s ease'
+            }}
+            onMouseOver={e => { e.currentTarget.style.borderColor = '#EF4444'; e.currentTarget.style.color = '#EF4444'; }}
+            onMouseOut={e => { e.currentTarget.style.borderColor = '#1a1a1a'; e.currentTarget.style.color = '#555'; }}
+          >
+            <LogOut size={15} />
+          </button>
         </div>
       </div>
     </div>

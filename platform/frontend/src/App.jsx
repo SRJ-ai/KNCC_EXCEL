@@ -28,9 +28,9 @@ function ProtectedLayout() {
   
   if (authLoading || platformLoading) {
     return (
-      <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', background: '#09090b', color: '#a1a1aa', flexDirection: 'column', gap: '1rem' }}>
-        <div style={{ width: 40, height: 40, border: '3px solid #3f3f46', borderTop: '3px solid #3B82F6', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
-        <span>Loading workspace...</span>
+      <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', background: '#000', color: '#555', flexDirection: 'column', gap: '1rem' }}>
+        <div style={{ width: 36, height: 36, border: '2px solid #111', borderTop: '2px solid #3B82F6', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+        <span style={{ fontSize: '13px', letterSpacing: '0.05em' }}>Loading workspace...</span>
       </div>
     );
   }
@@ -42,11 +42,23 @@ function ProtectedLayout() {
   }
 
   return (
-    <div className="app-container">
+    <div style={{ display: 'flex', height: '100vh', background: '#000', overflow: 'hidden' }}>
       {activeProject && <Sidebar />}
-      <div className="main-content" style={{ marginLeft: activeProject ? '250px' : '0' }}>
+      <div style={{
+        flex: 1,
+        marginLeft: activeProject ? '240px' : '0',
+        display: 'flex',
+        flexDirection: 'column',
+        background: '#000',
+        overflow: 'hidden',
+      }}>
         {activeProject && <TopBar />}
-        <div className="page-content" style={{ marginTop: activeProject ? '60px' : '0' }}>
+        <div style={{
+          flex: 1,
+          marginTop: activeProject ? '60px' : '0',
+          overflowY: 'auto',
+          background: '#000',
+        }}>
           <Outlet />
         </div>
       </div>
