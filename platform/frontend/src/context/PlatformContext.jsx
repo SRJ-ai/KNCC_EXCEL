@@ -51,6 +51,71 @@ export function PlatformProvider({ children }) {
           // Fetch Materials
           const { data: matData } = await supabase.from('materials').select('*').eq('project_id', projData.id);
           if (matData) setMaterials(matData);
+        } else {
+          // DEMO MODE: Hardcode a demo project if none exists
+          console.log("No projects found, loading hardcoded Willow Way Village demo data.");
+          const demoProjId = 'demo-wwv-123';
+          setActiveProject({
+            id: demoProjId,
+            name: 'Willow Way Village (Demo)',
+            organization_name: organization.name,
+            status: 'In Progress',
+            created_at: new Date().toISOString()
+          });
+          
+          setPos([{
+            id: 'po-1',
+            po_number: 'PO-WWV-001',
+            project_id: demoProjId,
+            organization_name: organization.name,
+            supplier: 'ABC Construction Supplies',
+            amount: 50000.00,
+            status: 'Approved',
+            date: '2023-01-15'
+          }]);
+
+          setInvoices([{
+            id: 'inv-1',
+            invoice_number: 'INV-001',
+            project_id: demoProjId,
+            po_id: 'po-1',
+            organization_name: organization.name,
+            supplier: 'ABC Construction Supplies',
+            amount: 15000.00,
+            status: 'Paid',
+            date: '2023-02-10'
+          }, {
+            id: 'inv-2',
+            invoice_number: 'INV-002',
+            project_id: demoProjId,
+            po_id: 'po-1',
+            organization_name: organization.name,
+            supplier: 'ABC Construction Supplies',
+            amount: 20000.00,
+            status: 'Pending',
+            date: '2023-03-25'
+          }]);
+
+          setCos([{
+            id: 'CO-WWV-01',
+            description: 'Upgraded landscaping for common areas',
+            amount: 5000.00,
+            status: 'Approved',
+            project_id: demoProjId,
+            organization_name: organization.name,
+            date: '2023-04-05'
+          }, {
+            id: 'CO-WWV-02',
+            description: 'Additional street lighting required by city',
+            amount: 8500.00,
+            status: 'Pending',
+            project_id: demoProjId,
+            organization_name: organization.name,
+            date: '2023-05-12'
+          }]);
+          
+          setDocuments([]);
+          setMaterials([]);
         }
       } catch (err) {
         console.error("Failed to fetch platform data", err);
