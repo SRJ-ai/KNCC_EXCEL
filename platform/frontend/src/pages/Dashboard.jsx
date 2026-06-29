@@ -12,6 +12,7 @@ import {
   Tooltip, ResponsiveContainer, CartesianGrid, Cell, PieChart, Pie
 } from 'recharts';
 import * as XLSX from 'xlsx';
+import { generateClientRequirementsExcel } from '../utils/excelExport';
 import ManualEntryModal from '../components/ManualEntryModal';
 import './Dashboard.css';
 
@@ -65,14 +66,8 @@ export default function Dashboard() {
   const handleExport = () => {
     setExporting(true);
     try {
-      const wb = XLSX.utils.book_new();
-      const poRows = [['PO #','Supplier','Amount','Status','Date'], ...pos.map(p=>[p.po_number||p.id, p.supplier||p.vendor, p.amount, p.status, p.date])];
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(poRows), 'POs');
-      const invRows = [['Invoice #','Supplier','Amount','Status','Date'], ...invoices.map(i=>[i.invoice_number||i.id, i.supplier, i.amount, i.status, i.date])];
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(invRows), 'Invoices');
-      const coRows = [['CO #','Description','Amount','Status'], ...cos.map(c=>[c.co_number||c.id, c.description, c.amount||c.cost, c.status])];
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(coRows), 'Change Orders');
-      XLSX.writeFile(wb, `${(activeProject?.name||'Project').replace(/\s+/g,'_')}_Report.xlsx`);
+      const wb = generateClientRequirementsExcel(activeProject, materials, pos, invoices, cos);
+      XLSX.writeFile(wb, `KNCC_${(activeProject?.name||'Project').replace(/\s+/g,'_')}_${new Date().toISOString().split('T')[0]}.xlsx`);
     } catch (err) { alert('Export failed: ' + err.message); }
     setExporting(false);
   };
