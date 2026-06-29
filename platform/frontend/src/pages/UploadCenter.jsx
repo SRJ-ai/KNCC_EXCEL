@@ -127,8 +127,16 @@ export default function UploadCenter() {
           {uploading || parsing ? <Loader2 size={18} className="animate-spin" /> : 'Browse Files'}
         </button>
       </div>
-
-              </div>
+      {recentUploads.length > 0 && (
+        <div className="recent-uploads animate-fade-in delay-200">
+          <h3 className="recent-uploads-title">Recent Uploads</h3>
+          <div className="upload-list">
+            {displayDocs.map(file => (
+              <div key={file.id} className="upload-item">
+                <div className="upload-info">
+                  <div className={`file-icon ${file.type === 'pdf' ? 'file-pdf' : 'file-excel'}`}>
+                    {file.type === 'pdf' ? <FileText size={24} /> : <FileSpreadsheet size={24} />}
+                  </div>
               <div className="file-details">
                 <h4>{file.file_name || file.name}</h4>
                 <p>{file.size} • {new Date(file.created_at || file.date).toLocaleDateString()}</p>
@@ -140,7 +148,9 @@ export default function UploadCenter() {
             </div>
           </div>
         ))}
+        </div>
       </div>
+      )}
     </div>
   );
 }
