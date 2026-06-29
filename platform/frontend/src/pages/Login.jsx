@@ -49,7 +49,7 @@ export default function Login() {
       }
       navigate('/dashboard');
     } catch (err) {
-      setError('Failed to create/login test account. Ensure email confirms are off.');
+      setError(`Failed to login: ${err.message || JSON.stringify(err)}`);
     }
     setIsTestLoading(false);
   };  return (
