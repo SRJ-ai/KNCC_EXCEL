@@ -255,36 +255,53 @@ export default function UploadCenter() {
 
       {/* ── Step 0: Upload form ── */}
       {step === 0 && (
-        <div className="uc-upload-section">
+        <div className="uc-upload-section animate-slide-up">
           {/* Doc type selector */}
           <div className="uc-type-select">
-            <p className="uc-type-label">Document Type</p>
+            <p className="uc-type-label" style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#a1a1aa', fontWeight: 600 }}>
+              Select Document Type
+            </p>
             <div className="uc-type-grid">
               {DOC_TYPES.map(dt => (
                 <button
                   key={dt.value}
-                  className={`uc-type-btn ${docType === dt.value ? 'selected' : ''}`}
-                  style={{ '--type-color': dt.color }}
+                  className={`uc-type-btn glass-card ${docType === dt.value ? 'selected' : ''}`}
+                  style={{ '--type-color': dt.color, padding: '1rem', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '4px' }}
                   onClick={() => setDocType(dt.value)}
                 >
-                  <span className="uc-type-code">{dt.value}</span>
-                  <span className="uc-type-name">{dt.label}</span>
-                  <span className="uc-type-desc">{dt.desc}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span className="uc-type-code" style={{ background: `color-mix(in srgb, ${dt.color} 20%, transparent)`, color: dt.color, padding: '2px 6px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700 }}>
+                      {dt.value}
+                    </span>
+                    <span className="uc-type-name" style={{ fontWeight: 600, color: '#f4f4f5' }}>{dt.label}</span>
+                  </div>
+                  <span className="uc-type-desc" style={{ fontSize: '0.75rem', color: '#71717a' }}>{dt.desc}</span>
                 </button>
               ))}
             </div>
           </div>
 
           {/* What will happen preview */}
-          <div className="uc-preview-hint">
-            {docType === 'PO' && <span>📦 After upload, you'll see a full page listing <strong>all materials to be added</strong> with Excel row references before confirming.</span>}
-            {docType === 'INV' && <span>🔍 After upload, you'll see <strong>which invoice lines match PO entries</strong> and which don't — with Excel cross-reference.</span>}
-            {docType === 'CO' && <span>📊 After upload, you'll see <strong>+/- quantity changes per Excel row</strong> with an interactive diff grid before confirming.</span>}
+          <div className="uc-preview-hint glass-panel" style={{ marginTop: '1.5rem', marginBottom: '1.5rem' }}>
+            {docType === 'PO' && <span>📦 <strong>Smart Parsing:</strong> After upload, you'll review all extracted materials and see exactly how they map to your project requirements.</span>}
+            {docType === 'INV' && <span>🔍 <strong>AI Matching:</strong> After upload, we'll auto-match invoice lines to your POs and highlight any unapproved variances or missing entries.</span>}
+            {docType === 'CO' && <span>📊 <strong>Automated Adjustments:</strong> After upload, you'll preview +/- quantity changes mapped directly to your Master Excel sheet.</span>}
           </div>
 
           {/* Drop zone */}
           <div
-            className={`uc-drop-zone ${dragOver ? 'drag-over' : ''} ${uploading || previewing ? 'loading' : ''}`}
+            className={`uc-drop-zone glass-card ${dragOver ? 'drag-over' : ''} ${uploading || previewing ? 'loading' : ''}`}
+            style={{ 
+              padding: '4rem 2rem', 
+              textAlign: 'center', 
+              border: dragOver ? '2px dashed var(--accent-blue)' : '2px dashed var(--border-color)',
+              background: dragOver ? 'var(--accent-blue-glow)' : 'var(--bg-surface)',
+              cursor: (uploading || previewing) ? 'wait' : 'pointer',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '1rem'
+            }}
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
             onDrop={handleDrop}
@@ -297,33 +314,44 @@ export default function UploadCenter() {
               style={{ display: 'none' }}
               onChange={e => handleFile(e.target.files?.[0])}
             />
-            <div className="uc-drop-icon">
+            
+            <div className="uc-drop-icon" style={{ 
+              width: '64px', height: '64px', 
+              borderRadius: '50%', 
+              background: 'rgba(59, 130, 246, 0.1)', 
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 0 20px rgba(59, 130, 246, 0.2)'
+            }}>
               {uploading || previewing
-                ? <Loader2 size={40} className="animate-spin" color="#3B82F6" />
-                : <UploadCloud size={40} color="#3B82F6" />
+                ? <Loader2 size={32} className="animate-spin" color="#3B82F6" />
+                : <UploadCloud size={32} color="#3B82F6" />
               }
             </div>
-            <h3 className="uc-drop-title">
-              {uploading ? 'Uploading document...'
-                : previewing ? 'Analyzing & mapping to Excel...'
-                : 'Drop a PDF here or click to browse'}
-            </h3>
-            <p className="uc-drop-desc">
-              {previewing
-                ? 'Matching line items to Client_Requirments_Doc.xlsx rows — this takes ~5 seconds...'
-                : `PDF only · will be classified as ${docType}`}
-            </p>
-            {!uploading && !previewing && (
-              <button className="uc-browse-btn" onClick={e => { e.stopPropagation(); fileInputRef.current?.click(); }}>
-                Browse Files <ChevronRight size={14} />
-              </button>
+
+            <div>
+              <h3 className="uc-drop-title" style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0 0 0.5rem 0', color: '#f4f4f5' }}>
+                {uploading ? 'Uploading securely...'
+                  : previewing ? 'AI is analyzing & mapping...'
+                  : 'Drag & drop your PDF'}
+              </h3>
+              <p className="uc-drop-desc" style={{ color: '#a1a1aa', margin: 0, fontSize: '0.9rem' }}>
+                {previewing
+                  ? 'Extracting line items and cross-referencing Master Excel... (~5s)'
+                  : 'or click to browse from your computer'}
+              </p>
+            </div>
+
+            {previewing && (
+              <div style={{ width: '60%', height: '4px', background: '#1c1c1e', borderRadius: '4px', overflow: 'hidden', marginTop: '1rem' }}>
+                <div style={{ width: '100%', height: '100%', background: 'var(--accent-blue)', animation: 'progressIndeterminate 1.5s infinite ease-in-out', transformOrigin: '0% 50%' }} />
+              </div>
             )}
           </div>
+          <style>{`@keyframes progressIndeterminate { 0% { transform: scaleX(0); transform-origin: 0% 50%; } 50% { transform: scaleX(1); transform-origin: 0% 50%; } 50.1% { transform: scaleX(1); transform-origin: 100% 50%; } 100% { transform: scaleX(0); transform-origin: 100% 50%; } }`}</style>
 
           {isDemoMode && (
-            <div className="uc-demo-note">
-              <Info size={14} />
-              Demo mode active.
+            <div className="uc-demo-note" style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center', marginTop: '1rem', color: '#71717a', fontSize: '0.8rem' }}>
+              <Info size={14} /> Demo mode active
             </div>
           )}
         </div>

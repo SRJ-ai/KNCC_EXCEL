@@ -269,8 +269,14 @@ function INVPreviewPage({ preview }) {
                   <div className="upp-match-chip">
                     <CheckCircle2 size={12} /> {item.matched_material_type || 'Matched'}
                   </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+                    <div style={{ flex: 1, height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', overflow: 'hidden' }}>
+                      <div style={{ width: `${item.match_score_pct || 100}%`, height: '100%', background: (item.match_score_pct || 100) > 75 ? '#10B981' : '#F59E0B' }} />
+                    </div>
+                    <span style={{ fontSize: '0.65rem', color: '#a1a1aa', fontWeight: 600 }}>{item.match_score_pct || 100}% Match</span>
+                  </div>
                   {item.excel_row_ref && (
-                    <div className="upp-mat-excel sm">
+                    <div className="upp-mat-excel sm" style={{ marginTop: '4px' }}>
                       <FileSpreadsheet size={11} color="#10B981" />
                       <span>{item.excel_row_ref}</span>
                     </div>

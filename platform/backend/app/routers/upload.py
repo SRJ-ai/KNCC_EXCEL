@@ -293,6 +293,7 @@ async def preview_upload(
             "matched_dimensions": match["material_dimensions"],
             "excel_row_ref": excel_ref,
             "match_score": match["score"],
+            "match_score_pct": min(100, int((match["score"] / 20.0) * 100)) if match["score"] > 0 else 0,
         })
 
     duplicate_warning = None
@@ -353,7 +354,10 @@ async def confirm_upload(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    doc_data = parse_pdf_document(filepath, doc_type)
+    try:
+        doc_data = parse_pdf_document(filepath, doc_type)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to parse PDF: {str(e)}")
 
     if doc_type == "INV" and doc_data.number:
         existing = db.query(Document).filter(
@@ -366,31 +370,38 @@ async def confirm_upload(
                 detail=f"Invoice #{doc_data.number} has already been processed for this project.",
             )
 
-    doc = Document(
-        project_id=project_id,
-        doc_type=doc_type,
-        filename=safe_name,
-        doc_number=doc_data.number,
-        parsed_data_json=doc_data.model_dump_json(),
-    )
-    db.add(doc)
-    db.flush()
+    try:
+        doc = Document(
+            project_id=project_id,
+            doc_type=doc_type,
+            filename=safe_name,
+            doc_number=doc_data.number,
+            parsed_data_json=doc_data.model_dump_json(),
+        )
+        db.add(doc)
+        db.flush()
 
-    if doc_type == "CO":
-        _save_co_adjustments(db, project_id, doc_data, doc.id)
+        if doc_type == "CO":
+            _save_co_adjustments(db, project_id, doc_data, doc.id)
 
-    db.commit()
-    db.refresh(doc)
+        # TODO: Add logic to save PO items to Materials table, and Invoice items to mappings/deliveries
+        # Currently the platform uses _load_excel_row_refs dynamically, but we should seed Materials 
+        # from PO if needed, or Delivery for invoices.
 
-    _log_activity(
-        db, project_id,
-        action=f"Document Processed: {doc_type}",
-        detail=f"{safe_name} | Doc# {doc_data.number} | {len(doc_data.line_items)} line items",
-    )
-    db.commit()
+        _log_activity(
+            db, project_id,
+            action=f"Document Processed: {doc_type}",
+            detail=f"{safe_name} | Doc# {doc_data.number} | {len(doc_data.line_items)} line items",
+        )
+        db.commit()
+        db.refresh(doc)
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database transaction failed: {str(e)}")
 
     return {
-        "message": "Document processed and confirmed",
+        "message": "Document processed and confirmed successfully",
         "document_id": doc.id,
         "doc_number": doc_data.number,
         "line_items_parsed": len(doc_data.line_items),

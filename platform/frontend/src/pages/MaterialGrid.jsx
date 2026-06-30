@@ -156,28 +156,51 @@ export default function MaterialGrid() {
                   ))}
                 </tr>
               ))
-            ) : (
-              filteredMaterials.map((item, idx) => (
-                <tr key={item.id || idx}>
-                  <td className="row-num-col">{idx + 3}</td>
-                  {EXCEL_COLS.map((col, j) => {
-                    const val = col.virtual || item[col.key];
-                    return (
-                      <td 
-                        key={j} 
-                        style={{ 
-                          textAlign: col.align || 'left',
-                          color: col.highlightColor,
-                          fontWeight: col.highlight ? 700 : 400
-                        }}
-                      >
-                        {fmt(val, col.isCurrency, col.isPct)}
+            ) : (() => {
+              // First sort by type
+              const sorted = [...filteredMaterials].sort((a, b) => (a.type || '').localeCompare(b.type || ''));
+              let currentType = null;
+              const rows = [];
+              let rowIdx = 3;
+
+              sorted.forEach((item, idx) => {
+                if (item.type !== currentType) {
+                  currentType = item.type;
+                  // Insert category divider
+                  rows.push(
+                    <tr key={`group-${currentType}`} style={{ background: '#1c1c1e' }}>
+                      <td className="row-num-col"></td>
+                      <td colSpan={EXCEL_COLS.length} style={{ fontWeight: 700, color: '#f4f4f5', padding: '0.5rem' }}>
+                        {currentType ? `${currentType} Division` : 'Uncategorized'}
                       </td>
-                    );
-                  })}
-                </tr>
-              ))
-            )}
+                    </tr>
+                  );
+                }
+
+                rows.push(
+                  <tr key={item.id || idx}>
+                    <td className="row-num-col">{rowIdx++}</td>
+                    {EXCEL_COLS.map((col, j) => {
+                      const val = col.virtual || item[col.key];
+                      return (
+                        <td 
+                          key={j} 
+                          style={{ 
+                            textAlign: col.align || 'left',
+                            color: col.highlightColor,
+                            fontWeight: col.highlight ? 700 : 400
+                          }}
+                        >
+                          {fmt(val, col.isCurrency, col.isPct)}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              });
+
+              return rows;
+            })()}
           </tbody>
         </table>
       </div>
