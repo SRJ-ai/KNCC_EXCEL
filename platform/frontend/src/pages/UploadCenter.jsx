@@ -6,7 +6,7 @@ import {
 import { usePlatform } from '../context/PlatformContext';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../supabaseClient';
-import UploadPreviewModal from './UploadPreviewModal';
+import UploadPreviewPage from './UploadPreviewPage';
 import './UploadCenter.css';
 
 const DOC_TYPES = [
@@ -15,9 +15,8 @@ const DOC_TYPES = [
   { value: 'CO',  label: 'Change Order',    desc: 'Quantity / scope modification',       color: '#F59E0B' },
 ];
 
-// Step indicator component
 function StepBar({ step }) {
-  const steps = ['Upload', 'Review', 'Done'];
+  const steps = ['Upload', 'Review Changes', 'Done'];
   return (
     <div className="uc-stepbar">
       {steps.map((label, i) => (
@@ -40,17 +39,17 @@ export default function UploadCenter() {
   const { user } = useAuth();
   const fileInputRef = useRef(null);
 
-  // Step 0 = upload form, 1 = previewing, 2 = done
-  const [step, setStep]         = useState(0);
-  const [uploadedFile, setUploadedFile] = useState(null);  // { name, path }
-  const [docType, setDocType]   = useState('PO');
+  // step 0 = upload form, 1 = full-page preview, 2 = done
+  const [step, setStep]           = useState(0);
+  const [uploadedFile, setUploadedFile] = useState(null);
+  const [docType, setDocType]     = useState('PO');
   const [uploading, setUploading] = useState(false);
   const [previewing, setPreviewing] = useState(false);
-  const [preview, setPreview]   = useState(null);
+  const [preview, setPreview]     = useState(null);
   const [confirming, setConfirming] = useState(false);
   const [lastResult, setLastResult] = useState(null);
-  const [error, setError]       = useState('');
-  const [dragOver, setDragOver] = useState(false);
+  const [error, setError]         = useState('');
+  const [dragOver, setDragOver]   = useState(false);
 
   const getToken = async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -63,26 +62,26 @@ export default function UploadCenter() {
   const handleFile = useCallback(async (file) => {
     if (!file) return;
     if (!file.name.toLowerCase().endsWith('.pdf')) {
-      setError('Only PDF files are supported. Please upload a PDF.');
+      setError('Only PDF files are supported.');
       return;
     }
     if (!activeProject) {
-      setError('No active project. Create a project first.');
+      setError('No active project. Create or select a project first.');
       return;
     }
     setError('');
     setUploading(true);
 
     try {
-      // ── Step 1: Upload PDF to Supabase Storage ──────────────────
+      // ── Upload PDF to Supabase Storage ──────────────────────────
       const ext = file.name.split('.').pop();
-      const filePath = `${user?.id}/${Date.now()}.${ext}`;
+      const filePath = `${user?.id || 'anon'}/${Date.now()}.${ext}`;
       const { data: storageData, error: storageErr } = await supabase.storage
         .from('documents')
         .upload(filePath, file);
       if (storageErr) throw new Error(`Storage upload failed: ${storageErr.message}`);
 
-      // ── Step 1b: Also upload to backend for parsing ─────────────
+      // ── Also upload to backend for PDF parsing ───────────────────
       const token = await getToken();
       const fd = new FormData();
       fd.append('files', file, file.name);
@@ -92,14 +91,11 @@ export default function UploadCenter() {
         body: fd,
       });
 
-      let backendAvailable = uploadRes.ok;
-      let uploadResult = backendAvailable ? await uploadRes.json() : null;
-
       setUploadedFile({ name: file.name, storagePath: storageData?.path });
       setUploading(false);
 
-      if (!backendAvailable) {
-        // Backend unavailable — record document and skip preview
+      if (!uploadRes.ok) {
+        // Backend offline — record doc and skip to done
         await addDocument({
           file_name: file.name,
           file_path: storageData.path,
@@ -112,7 +108,7 @@ export default function UploadCenter() {
         return;
       }
 
-      // ── Step 2: Fetch preview from backend ──────────────────────
+      // ── Fetch full preview ───────────────────────────────────────
       setPreviewing(true);
       const previewFd = new FormData();
       previewFd.append('filename', file.name);
@@ -132,7 +128,7 @@ export default function UploadCenter() {
 
       const previewData = await previewRes.json();
       setPreview(previewData);
-      setStep(1);
+      setStep(1); // → full page preview
 
     } catch (err) {
       console.error('Upload error:', err);
@@ -173,7 +169,6 @@ export default function UploadCenter() {
 
       const result = await res.json();
 
-      // Save document metadata to Supabase
       if (uploadedFile.storagePath) {
         await addDocument({
           file_name: uploadedFile.name,
@@ -199,6 +194,7 @@ export default function UploadCenter() {
     setUploadedFile(null);
     setStep(0);
     setError('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleReset = () => {
@@ -210,29 +206,31 @@ export default function UploadCenter() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // Recent uploads display
+  // ── Step 1: Full-page preview replaces the whole view ──────────
+  if (step === 1 && preview) {
+    return (
+      <UploadPreviewPage
+        preview={preview}
+        onConfirm={handleConfirm}
+        onDiscard={handleDiscard}
+        confirming={confirming}
+      />
+    );
+  }
+
+  // ── Step 0 / 2: Upload form or success ─────────────────────────
   const displayDocs = documents.slice(0, 6);
 
   return (
     <div className="uc-wrap animate-fade-in">
 
-      {/* ── Preview Modal (Step 1) ── */}
-      {step === 1 && preview && (
-        <UploadPreviewModal
-          preview={preview}
-          onConfirm={handleConfirm}
-          onDiscard={handleDiscard}
-          confirming={confirming}
-        />
-      )}
-
-      {/* ── Header ── */}
+      {/* Header */}
       <div className="uc-header">
         <div>
           <h1 className="uc-title page-title">Upload Center</h1>
           <p className="uc-subtitle page-subtitle">
-            Upload POs, Invoices, and Change Orders — each document is previewed and
-            mapped to <strong>Client_Requirments_Doc.xlsx</strong> before saving.
+            Upload POs, Invoices, and Change Orders — each is previewed and mapped to{' '}
+            <strong>Client_Requirments_Doc.xlsx</strong> on a full review page before saving.
           </p>
         </div>
         {step > 0 && (
@@ -242,10 +240,10 @@ export default function UploadCenter() {
         )}
       </div>
 
-      {/* ── Step Indicator ── */}
+      {/* Step bar */}
       <StepBar step={step} />
 
-      {/* ── Error Banner ── */}
+      {/* Error banner */}
       {error && (
         <div className="uc-error">
           <AlertCircle size={16} />
@@ -256,11 +254,10 @@ export default function UploadCenter() {
         </div>
       )}
 
-      {/* ── Step 0: Upload Form ── */}
+      {/* ── Step 0: Upload form ── */}
       {step === 0 && (
         <div className="uc-upload-section">
-
-          {/* Document type selector */}
+          {/* Doc type selector */}
           <div className="uc-type-select">
             <p className="uc-type-label">Document Type</p>
             <div className="uc-type-grid">
@@ -277,6 +274,13 @@ export default function UploadCenter() {
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* What will happen preview */}
+          <div className="uc-preview-hint">
+            {docType === 'PO' && <span>📦 After upload, you'll see a full page listing <strong>all materials to be added</strong> with Excel row references before confirming.</span>}
+            {docType === 'INV' && <span>🔍 After upload, you'll see <strong>which invoice lines match PO entries</strong> and which don't — with Excel cross-reference.</span>}
+            {docType === 'CO' && <span>📊 After upload, you'll see <strong>+/- quantity changes per Excel row</strong> with an interactive diff grid before confirming.</span>}
           </div>
 
           {/* Drop zone */}
@@ -301,12 +305,14 @@ export default function UploadCenter() {
               }
             </div>
             <h3 className="uc-drop-title">
-              {uploading ? 'Uploading document...' : previewing ? 'Analyzing and mapping to Excel...' : 'Drop a PDF here or click to browse'}
+              {uploading ? 'Uploading document...'
+                : previewing ? 'Analyzing & mapping to Excel...'
+                : 'Drop a PDF here or click to browse'}
             </h3>
             <p className="uc-drop-desc">
               {previewing
-                ? 'Matching line items to Client_Requirments_Doc.xlsx rows...'
-                : `PDF only · max 50MB · will be classified as ${docType}`}
+                ? 'Matching line items to Client_Requirments_Doc.xlsx rows — this takes ~5 seconds...'
+                : `PDF only · will be classified as ${docType}`}
             </p>
             {!uploading && !previewing && (
               <button className="uc-browse-btn" onClick={e => { e.stopPropagation(); fileInputRef.current?.click(); }}>
@@ -318,7 +324,7 @@ export default function UploadCenter() {
           {isDemoMode && (
             <div className="uc-demo-note">
               <Info size={14} />
-              Demo mode — uploads go to backend for parsing but data won't persist to Supabase.
+              Demo mode active.
             </div>
           )}
         </div>
@@ -349,12 +355,11 @@ export default function UploadCenter() {
         </div>
       )}
 
-      {/* ── Recent Uploads ── */}
+      {/* Recent uploads */}
       {displayDocs.length > 0 && step === 0 && (
         <div className="uc-recent animate-fade-in">
           <h3 className="uc-recent-title">
-            <FileSearch size={16} />
-            Recent Uploads
+            <FileSearch size={16} /> Recent Uploads
           </h3>
           <div className="uc-recent-list">
             {displayDocs.map((file, i) => (

@@ -1,5 +1,20 @@
 /* UploadCenter.css — 3-step upload flow */
 
+/* Preview hint banner */
+.uc-preview-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  background: rgba(59, 130, 246, 0.06);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 9px;
+  padding: 0.75rem 1rem;
+  font-size: 0.82rem;
+  color: #71717a;
+  line-height: 1.5;
+}
+.uc-preview-hint strong { color: #a1a1aa; }
+
 .uc-wrap {
   padding: 2rem 2.5rem;
   max-width: 860px;
