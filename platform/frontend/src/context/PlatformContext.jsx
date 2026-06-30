@@ -143,6 +143,32 @@ export function PlatformProvider({ children }) {
     setPos([]); setInvoices([]); setCos([]); setDocuments([]); setMaterials([]);
   };
 
+  useEffect(() => {
+    if (!activeProject || isDemoMode) return;
+    
+    const fetchProjectData = async () => {
+      try {
+        const pId = activeProject.id;
+        const [posRes, invRes, cosRes, docsRes, matsRes] = await Promise.all([
+          supabase.from('pos').select('*').eq('project_id', pId),
+          supabase.from('invoices').select('*').eq('project_id', pId),
+          supabase.from('cos').select('*').eq('project_id', pId),
+          supabase.from('documents').select('*').eq('project_id', pId).order('created_at', { ascending: false }),
+          supabase.from('materials').select('*').eq('project_id', pId),
+        ]);
+
+        if (posRes.data) setPos(posRes.data);
+        if (invRes.data) setInvoices(invRes.data);
+        if (cosRes.data) setCos(cosRes.data);
+        if (docsRes.data) setDocuments(docsRes.data);
+        if (matsRes.data) setMaterials(matsRes.data);
+      } catch (err) {
+        console.error("Failed to fetch project data:", err);
+      }
+    };
+    fetchProjectData();
+  }, [activeProject?.id, isDemoMode]);
+
   const createProject = async (projectData) => {
     try {
       const { data, error } = await supabase.from('projects').insert([projectData]).select().single();
