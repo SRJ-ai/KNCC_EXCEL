@@ -160,9 +160,11 @@
   gap: 1rem;
 }
 
-.db-kpi {
-  background: #0a0a0a;
-  border: 1px solid #1a1a1a;
+.db-kpi-card {
+  background: rgba(10, 10, 10, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: 14px;
   padding: 1.5rem;
   display: flex;
@@ -171,14 +173,14 @@
   position: relative;
   overflow: hidden;
   cursor: default;
-  transition: all 0.25s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
 }
 
-.db-kpi:hover {
-  border-color: #2a2a2a;
-  transform: translateY(-3px);
-  background: #0d0d0d;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+.db-kpi-card:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(15, 15, 15, 0.85);
+  box-shadow: 0 10px 40px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.05);
 }
 
 .db-kpi::after {
@@ -279,15 +281,20 @@
 }
 
 .db-panel {
-  background: #0a0a0a;
-  border: 1px solid #1a1a1a;
-  border-radius: 14px;
+  background: rgba(10, 10, 10, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 16px;
   padding: 1.5rem;
-  transition: border-color 0.2s ease;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
 }
 
 .db-panel:hover {
-  border-color: #252525;
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(15, 15, 15, 0.7);
+  box-shadow: 0 12px 48px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.03);
 }
 
 .db-panel-wide {

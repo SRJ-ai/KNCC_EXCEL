@@ -96,3 +96,88 @@
   color: #EF4444;
   border: 1px solid rgba(239, 68, 68, 0.2);
 }
+
+.filter-select {
+  background: rgba(24, 24, 27, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  color: #fff;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  outline: none;
+}
+
+.filter-select:focus {
+  border-color: #3B82F6;
+}
+
+.export-btn {
+  padding: 0.75rem 1.5rem;
+  background: #3B82F6;
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.export-btn:hover {
+  background: #2563eb;
+  transform: translateY(-1px);
+}
+
+.bulk-actions {
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 8px;
+  padding: 1rem 1.5rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  overflow: hidden;
+}
+
+.bulk-btn {
+  padding: 0.5rem 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: #fff;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.bulk-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.bulk-btn.danger {
+  color: #EF4444;
+  border-color: rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.bulk-btn.danger:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+.selected-row {
+  background: rgba(59, 130, 246, 0.05) !important;
+}
+
+input[type="checkbox"] {
+  accent-color: #3B82F6;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}

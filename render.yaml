@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: kncc-backend
+    runtime: python
+    region: oregon
+    plan: free
+    rootDir: platform/backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        sync: false  # Set manually in Render dashboard → Supabase Postgres URL
+      - key: SECRET_KEY
+        generateValue: true
+      - key: LEGACY_EXCEL
+        value: /opt/render/project/src/Client/Client_Requirments_Doc.xlsx
+      - key: UPLOAD_DIR
+        value: /tmp/uploads
+      - key: EXPORT_DIR
+        value: /tmp/exports
+    healthCheckPath: /health
+    autoDeploy: true

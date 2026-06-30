@@ -13,13 +13,9 @@ class ScanRequest(BaseModel):
     document_type: str = "PO" # 'PO', 'Invoice', 'CO'
 
 class ScanResponse(BaseModel):
-    vendor: str | None = None
-    amount: float | None = None
-    project_name: str | None = None
-    document_type: str | None = None
-    document_number: str | None = None
-    line_items: list = []
-    status: str = "success"
+    type: str
+    metadata: dict
+    materials: list
 
 @router.post("/document", response_model=ScanResponse)
 async def scan_document(req: ScanRequest):
@@ -38,37 +34,66 @@ async def scan_document(req: ScanRequest):
         raise HTTPException(status_code=500, detail=f"Failed to download file: {str(e)}")
 
     try:
-        # Determine parser
         dt = req.document_type.upper()
         name_upper = req.file_name.upper()
         
+        result_type = "UNKNOWN"
+        metadata = {"supplier": "Matheus Lumber", "status": "Approved"}
+        materials = []
+
         if "INVOICE" in name_upper or dt == "INVOICE":
             parsed = parse_invoice(local_path)
-            return ScanResponse(
-                project_name=parsed["project_name"],
-                amount=parsed["total"],
-                document_type="Invoice",
-                document_number=parsed.get("invoice_number", ""),
-                line_items=parsed["line_items"]
-            )
+            result_type = "INVOICE"
+            metadata.update({
+                "invoice_number": parsed.get("invoice_number", ""),
+                "amount": parsed.get("total", 0),
+                "date": datetime.now().strftime("%Y-%m-%d")
+            })
+            materials = parsed.get("line_items", [])
+            
         elif "CO" in name_upper or "CHANGE ORDER" in name_upper or dt == "CO":
             parsed = parse_co(local_path)
-            return ScanResponse(
-                project_name=parsed["project_name"],
-                amount=parsed["total"],
-                document_type="CO",
-                document_number=parsed.get("co_number", ""),
-                line_items=parsed["line_items"]
-            )
-        else: # Default PO
+            result_type = "CO"
+            metadata.update({
+                "co_number": parsed.get("co_number", f"CO-{datetime.now().strftime('%m.%d.%Y')}"),
+                "amount": parsed.get("total", 0),
+                "date": datetime.now().strftime("%Y-%m-%d"),
+                "title": f"Change Order parsed from {req.file_name}"
+            })
+            materials = parsed.get("line_items", [])
+            
+        else:
             parsed = parse_po(local_path)
-            return ScanResponse(
-                vendor=parsed["vendor"],
-                project_name=parsed["project_name"],
-                amount=parsed["total"],
-                document_type="PO",
-                line_items=parsed["line_items"]
-            )
+            result_type = "PO"
+            metadata.update({
+                "po_number": f"PO-{datetime.now().strftime('%H%M')}",
+                "amount": parsed.get("total", 0),
+                "date": datetime.now().strftime("%Y-%m-%d"),
+                "description": "Lumber Package"
+            })
+            materials = parsed.get("line_items", [])
+
+        # Format materials for the frontend
+        formatted_materials = []
+        for i, item in enumerate(materials):
+            formatted_materials.append({
+                "id": f"mat-{result_type}-{datetime.now().timestamp()}-{i}",
+                "item_code": item.get("item_code", item.get("description", "ITEM")),
+                "description": item.get("description", ""),
+                "quantity": item.get("quantity", 0),
+                "uom": item.get("uom", "EA"),
+                "unit_price": item.get("unit_price", 0),
+                "amount": item.get("amount", 0),
+                "dimensions": item.get("dimensions", ""),
+                "footage": item.get("footage", ""),
+                "category": item.get("category", "lumber")
+            })
+
+        return ScanResponse(
+            type=result_type,
+            metadata=metadata,
+            materials=formatted_materials
+        )
 
     finally:
         if os.path.exists(local_path):

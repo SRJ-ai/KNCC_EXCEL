@@ -11,6 +11,7 @@ import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis,
   Tooltip, ResponsiveContainer, CartesianGrid, Cell, PieChart, Pie
 } from 'recharts';
+import { motion } from 'framer-motion';
 import * as XLSX from 'xlsx';
 import { generateClientRequirementsExcel } from '../utils/excelExport';
 import ManualEntryModal from '../components/ManualEntryModal';
@@ -75,108 +76,78 @@ export default function Dashboard() {
   const fmt = (n) => `$${Number(n||0).toLocaleString()}`;
 
   const kpis = [
-    {
-      title: 'Total PO Value',
-      value: fmt(totalPOValue),
-      sub: `${pos.length} Purchase Orders`,
-      icon: <Package size={22} />,
-      gradient: 'from-blue to-blue-dim',
-      accent: '#3B82F6',
-      trend: '+12%',
-      up: true,
-    },
-    {
-      title: 'Total Invoiced',
-      value: fmt(totalInvoiced),
-      sub: `${billedPct}% of PO value billed`,
-      icon: <FileCheck size={22} />,
-      gradient: 'from-green to-green-dim',
-      accent: '#10B981',
-      trend: `${billedPct}%`,
-      up: true,
-    },
-    {
-      title: 'CO Impact',
-      value: fmt(totalCOImpact),
-      sub: `${cos.length} Change Orders`,
-      icon: <AlertCircle size={22} />,
-      gradient: 'from-amber to-amber-dim',
-      accent: '#F59E0B',
-      trend: `${approvedCOs} approved`,
-      up: false,
-    },
-    {
-      title: 'Budget Variance',
-      value: fmt(Math.abs(totalPOValue - totalInvoiced)),
-      sub: totalPOValue >= totalInvoiced ? 'Under budget ✓' : 'Over budget ⚠',
-      icon: <DollarSign size={22} />,
-      gradient: 'from-purple to-purple-dim',
-      accent: totalPOValue >= totalInvoiced ? '#10B981' : '#EF4444',
-      trend: totalPOValue >= totalInvoiced ? 'Healthy' : 'Review',
-      up: totalPOValue >= totalInvoiced,
-    },
+    { title: 'Total PO Value', value: fmt(totalPOValue), sub: `${pos.length} Purchase Orders`, icon: <Package size={22} />, accent: '#3B82F6', trend: '+12%', up: true },
+    { title: 'Total Invoiced', value: fmt(totalInvoiced), sub: `${billedPct}% of PO value billed`, icon: <FileCheck size={22} />, accent: '#10B981', trend: `${billedPct}%`, up: true },
+    { title: 'CO Impact', value: fmt(totalCOImpact), sub: `${cos.length} Change Orders`, icon: <AlertCircle size={22} />, accent: '#F59E0B', trend: `${approvedCOs} approved`, up: false },
+    { title: 'Budget Variance', value: fmt(Math.abs(totalPOValue - totalInvoiced)), sub: totalPOValue >= totalInvoiced ? 'Under budget ✓' : 'Over budget ⚠', icon: <DollarSign size={22} />, accent: totalPOValue >= totalInvoiced ? '#10B981' : '#EF4444', trend: totalPOValue >= totalInvoiced ? 'Healthy' : 'Review', up: totalPOValue >= totalInvoiced },
   ];
+
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
+  };
+
+  const itemVariants = {
+    hidden: { y: 20, opacity: 0 },
+    visible: { y: 0, opacity: 1, transition: { type: "spring", stiffness: 300, damping: 24 } }
+  };
 
   return (
     <div className="db-wrap">
-
-      {/* ── Banner ─────────────────────────────────────────── */}
-      <div className="db-banner animate-fade-in">
+      <motion.div className="db-banner" initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
         <div className="db-banner-left">
           <div className="db-greeting">
             <span className="db-greeting-emoji">👋</span>
             <div>
               <h1 className="db-title">Welcome back, <span className="db-name">{user?.name || user?.email?.split('@')[0] || 'Engineer'}</span></h1>
               <p className="db-sub">
-                <span className="db-project-badge">
-                  <Layers size={13} /> {activeProject?.name || 'No Project'}
-                  {isDemoMode && <span className="db-demo-tag">Demo</span>}
-                </span>
-                &nbsp;·&nbsp; {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                <span className="db-project-badge"><Layers size={13} /> {activeProject?.name || 'No Project'} {isDemoMode && <span className="db-demo-tag">Demo</span>}</span>
               </p>
             </div>
           </div>
         </div>
         <div className="db-banner-right">
-          <button className="db-btn-ghost" onClick={() => setIsManualModalOpen(true)}>
-            <Plus size={16} /> Manual Entry
-          </button>
-          <button className="db-btn-primary" onClick={handleExport} disabled={exporting}>
-            <Download size={16} /> {exporting ? 'Generating…' : 'Export Report'}
-          </button>
+          <button className="db-btn-ghost" onClick={() => setIsManualModalOpen(true)}><Plus size={16} /> Manual Entry</button>
+          <button className="db-btn-primary" onClick={handleExport} disabled={exporting}><Download size={16} /> {exporting ? 'Generating…' : 'Export Report'}</button>
         </div>
-      </div>
+      </motion.div>
 
       <ManualEntryModal isOpen={isManualModalOpen} onClose={() => setIsManualModalOpen(false)} />
 
-      {/* ── KPI Row ────────────────────────────────────────── */}
-      <div className="db-kpi-grid">
-        {kpis.map((k, i) => (
-          <div key={i} className="db-kpi animate-fade-in" style={{ '--accent': k.accent, animationDelay: `${i * 60}ms` }}>
-            <div className="db-kpi-top">
-              <span className="db-kpi-label">{k.title}</span>
-              <div className="db-kpi-icon" style={{ background: k.accent + '22', color: k.accent }}>
-                {k.icon}
+      <motion.div 
+        className="db-content"
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+      >
+        {/* ── KPI Row ────────────────────────────────────────── */}
+        <div className="db-kpi-grid">
+          {kpis.map((k, i) => (
+            <motion.div key={i} className="db-kpi-card" variants={itemVariants} whileHover={{ y: -4, scale: 1.02, transition: { duration: 0.2 } }}>
+              <div className="db-kpi-top">
+                <span className="db-kpi-label">{k.title}</span>
+                <div className="db-kpi-icon" style={{ background: k.accent + '22', color: k.accent }}>
+                  {k.icon}
+                </div>
               </div>
-            </div>
-            <div className="db-kpi-value">{k.value}</div>
-            <div className="db-kpi-footer">
-              <span className="db-kpi-sub">{k.sub}</span>
-              <span className={`db-kpi-trend ${k.up ? 'up' : 'down'}`}>
-                {k.up ? <ArrowUpRight size={13}/> : <ArrowDownRight size={13}/>}
-                {k.trend}
-              </span>
-            </div>
-            <div className="db-kpi-bar" style={{ '--pct': `${Math.min(billedPct, 100)}%`, '--clr': k.accent }}></div>
-          </div>
-        ))}
-      </div>
+              <div className="db-kpi-value">{k.value}</div>
+              <div className="db-kpi-footer">
+                <span className="db-kpi-sub">{k.sub}</span>
+                <span className={`db-kpi-trend ${k.up ? 'up' : 'down'}`}>
+                  {k.up ? <ArrowUpRight size={13}/> : <ArrowDownRight size={13}/>}
+                  {k.trend}
+                </span>
+              </div>
+              <div className="db-kpi-bar" style={{ '--pct': `${Math.min(billedPct, 100)}%`, '--clr': k.accent }}></div>
+            </motion.div>
+          ))}
+        </div>
 
-      {/* ── Main Grid ─────────────────────────────────────── */}
-      <div className="db-main-grid">
+        {/* ── Main Grid ─────────────────────────────────────── */}
+        <div className="db-main-grid">
 
         {/* Area Chart */}
-        <div className="db-panel db-panel-wide animate-fade-in" style={{ animationDelay: '200ms' }}>
+        <motion.div className="db-panel db-panel-wide" variants={itemVariants}>
           <div className="db-panel-header">
             <div>
               <h3 className="db-panel-title">PO vs Invoice Spend</h3>
@@ -207,10 +178,10 @@ export default function Dashboard() {
               <Area type="monotone" dataKey="invoiced" stroke="#10B981" strokeWidth={2} fill="url(#gInv)" dot={{ fill: '#10B981', r: 3 }} />
             </AreaChart>
           </ResponsiveContainer>
-        </div>
+        </motion.div>
 
         {/* Spend Breakdown Pie */}
-        <div className="db-panel animate-fade-in" style={{ animationDelay: '250ms' }}>
+        <motion.div className="db-panel" variants={itemVariants}>
           <div className="db-panel-header">
             <div>
               <h3 className="db-panel-title">Spend Breakdown</h3>
@@ -240,10 +211,10 @@ export default function Dashboard() {
           ) : (
             <div className="db-empty">No financial data yet</div>
           )}
-        </div>
+        </motion.div>
 
         {/* Status Bar Chart */}
-        <div className="db-panel animate-fade-in" style={{ animationDelay: '300ms' }}>
+        <motion.div className="db-panel" variants={itemVariants}>
           <div className="db-panel-header">
             <div>
               <h3 className="db-panel-title">Project Snapshot</h3>
@@ -260,10 +231,10 @@ export default function Dashboard() {
               </Bar>
             </BarChart>
           </ResponsiveContainer>
-        </div>
+        </motion.div>
 
         {/* Activity Feed */}
-        <div className="db-panel db-panel-wide animate-fade-in" style={{ animationDelay: '350ms' }}>
+        <motion.div className="db-panel db-panel-wide" variants={itemVariants}>
           <div className="db-panel-header">
             <div>
               <h3 className="db-panel-title"><Activity size={16} style={{ display: 'inline', marginRight: 6 }} />Recent Activity</h3>
@@ -272,7 +243,7 @@ export default function Dashboard() {
           </div>
           <div className="db-activity">
             {activities.length > 0 ? activities.map((a, i) => (
-              <div key={i} className="db-activity-row" style={{ animationDelay: `${350 + i * 50}ms` }}>
+              <div key={i} className="db-activity-row">
                 <div className="db-activity-icon" style={{ background: a.color + '22', color: a.color }}>
                   {a.icon}
                 </div>
@@ -289,10 +260,10 @@ export default function Dashboard() {
               <div className="db-empty">No activity yet. Upload a PO or invoice to get started.</div>
             )}
           </div>
-        </div>
+        </motion.div>
 
         {/* Quick Links */}
-        <div className="db-panel animate-fade-in" style={{ animationDelay: '400ms' }}>
+        <motion.div className="db-panel" variants={itemVariants}>
           <div className="db-panel-header">
             <h3 className="db-panel-title">Quick Actions</h3>
           </div>
@@ -313,9 +284,10 @@ export default function Dashboard() {
               </a>
             ))}
           </div>
-        </div>
+        </motion.div>
 
       </div>
+      </motion.div>
     </div>
   );
 }

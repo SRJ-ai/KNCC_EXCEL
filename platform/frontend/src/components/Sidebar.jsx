@@ -1,5 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import {
   LayoutDashboard, Table, UploadCloud, FileText,
   Clock, TrendingUp, CheckCircle, FileCheck, Download, Activity
@@ -54,46 +55,60 @@ const navStyle = ({ isActive }) => ({
   letterSpacing: '-0.01em',
 });
 
+const containerVariants = {
+  hidden: { opacity: 0, x: -20 },
+  visible: { opacity: 1, x: 0, transition: { staggerChildren: 0.05, delayChildren: 0.2 } }
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, x: -10 },
+  visible: { opacity: 1, x: 0 }
+};
+
 const Sidebar = () => (
   <div style={sidebarStyle}>
     {/* Logo */}
-    <div style={{ marginBottom: '32px', paddingLeft: '4px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-      <img
-        src={logo}
-        alt="KNCC Logo"
-        style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'contain' }}
-      />
+    <motion.div 
+      initial={{ opacity: 0, scale: 0.9 }} 
+      animate={{ opacity: 1, scale: 1 }} 
+      transition={{ duration: 0.5 }}
+      style={{ marginBottom: '32px', paddingLeft: '4px', display: 'flex', alignItems: 'center', gap: '10px' }}
+    >
+      <img src={logo} alt="KNCC Logo" style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'contain' }} />
       <div>
-        <div style={{ fontSize: '17px', fontWeight: 800, color: '#fff', fontFamily: 'Outfit', letterSpacing: '0.06em', lineHeight: 1 }}>
-          KNCC
-        </div>
-        <div style={{ fontSize: '9px', color: '#3B82F6', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 700, marginTop: '3px' }}>
-          Enterprise
-        </div>
+        <div style={{ fontSize: '17px', fontWeight: 800, color: '#fff', fontFamily: 'Outfit', letterSpacing: '0.06em', lineHeight: 1 }}>KNCC</div>
+        <div style={{ fontSize: '9px', color: '#3B82F6', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 700, marginTop: '3px' }}>Enterprise</div>
       </div>
-    </div>
+    </motion.div>
 
     {/* Nav */}
-    <nav style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
+    <motion.nav 
+      variants={containerVariants} 
+      initial="hidden" 
+      animate="visible" 
+      style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}
+    >
       {NAV_ITEMS.map(item => (
-        <NavLink key={item.to} to={item.to} style={navStyle}
-          onMouseEnter={e => { if (!e.currentTarget.style.backgroundColor || e.currentTarget.style.backgroundColor === 'transparent') { e.currentTarget.style.background = '#0a0a0a'; e.currentTarget.style.color = '#ccc'; }}}
-          onMouseLeave={e => { if (e.currentTarget.style.background === '#0a0a0a') { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#555'; }}}
-        >
-          <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'inherit' }}>
-            {item.icon}
-          </span>
-          <span>{item.label}</span>
-        </NavLink>
+        <motion.div key={item.to} variants={itemVariants}>
+          <NavLink to={item.to} style={navStyle}
+            onMouseEnter={e => { if (!e.currentTarget.style.backgroundColor || e.currentTarget.style.backgroundColor === 'transparent') { e.currentTarget.style.background = '#0a0a0a'; e.currentTarget.style.color = '#ccc'; }}}
+            onMouseLeave={e => { if (e.currentTarget.style.background === '#0a0a0a') { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#555'; }}}
+          >
+            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'inherit' }}>
+              {item.icon}
+            </span>
+            <span>{item.label}</span>
+          </NavLink>
+        </motion.div>
       ))}
-    </nav>
+    </motion.nav>
 
     {/* Footer */}
-    <div style={{ paddingTop: '16px', borderTop: '1px solid #111', textAlign: 'center' }}>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }} style={{ paddingTop: '16px', borderTop: '1px solid #111', textAlign: 'center' }}>
       <div style={{ fontSize: '10px', color: '#222', textTransform: 'uppercase', letterSpacing: '1px' }}>
         A Quantum Pixel Product
       </div>
-    </div>
+    </motion.div>
   </div>
 );
 

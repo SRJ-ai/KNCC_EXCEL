@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Plus, X } from 'lucide-react';
 import { usePlatform } from '../context/PlatformContext';
+import { motion } from 'framer-motion';
 import './COTimeline.css';
 
 export default function COTimeline() {
@@ -44,9 +45,24 @@ export default function COTimeline() {
     setFormData({ title: '', cost: '', desc: '' });
   };
 
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: { opacity: 1, transition: { staggerChildren: 0.15 } }
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, x: -30 },
+    visible: { opacity: 1, x: 0, transition: { type: 'spring', stiffness: 200, damping: 20 } }
+  };
+
   return (
     <div className="timeline-container">
-      <div className="timeline-header">
+      <motion.div 
+        className="timeline-header"
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
         <div>
           <h1 className="timeline-title">Change Order Timeline</h1>
           <p style={{ color: '#a1a1aa', margin: '0.25rem 0 0 0' }}>Track all project modifications and their financial impact.</p>
@@ -57,11 +73,15 @@ export default function COTimeline() {
         >
           <Plus size={18} /> Create CO
         </button>
-      </div>
+      </motion.div>
 
       {showModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#18181b', padding: '2rem', borderRadius: '12px', width: '500px', border: '1px solid rgba(255,255,255,0.1)' }}>
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            style={{ background: '#18181b', padding: '2rem', borderRadius: '12px', width: '500px', border: '1px solid rgba(255,255,255,0.1)' }}
+          >
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
               <h2 style={{ margin: 0 }}>Create Change Order</h2>
               <button onClick={() => setShowModal(false)} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}><X size={24} /></button>
@@ -81,17 +101,22 @@ export default function COTimeline() {
               </div>
               <button type="submit" style={{ width: '100%', padding: '1rem', background: '#3B82F6', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 600, cursor: 'pointer' }}>Submit CO</button>
             </form>
-          </div>
+          </motion.div>
         </div>
       )}
 
-      <div className="timeline-wrapper">
+      <motion.div 
+        className="timeline-wrapper"
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+      >
         {displayCOs.map(co => {
           const styles = getStatusStyle(co.status);
           const costColorClass = typeof styles.cost === 'function' ? styles.cost(co.cost) : styles.cost;
           
           return (
-            <div key={co.id} className="timeline-item">
+            <motion.div key={co.id} className="timeline-item" variants={itemVariants}>
               <div className={`timeline-dot ${styles.dot}`}></div>
               <div className="timeline-content">
                 <div className="co-header">
@@ -104,13 +129,13 @@ export default function COTimeline() {
                 <p className="co-body">{co.desc}</p>
                 <div className="co-footer">
                   <span className={`co-status ${styles.badge}`}>{co.status}</span>
-                  <span className={`co-cost ${costColorClass}`}>{co.cost}</span>
+                  <span className={`co-cost ${costColorClass}`}>{typeof co.amount !== 'undefined' ? `$${Number(co.amount).toLocaleString()}` : co.cost}</span>
                 </div>
               </div>
-            </div>
+            </motion.div>
           );
         })}
-      </div>
+      </motion.div>
     </div>
   );
 }

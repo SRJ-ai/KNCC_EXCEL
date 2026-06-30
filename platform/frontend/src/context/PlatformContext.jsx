@@ -127,9 +127,9 @@ export function PlatformProvider({ children }) {
           setActiveProject(projData);
 
           const [poRes, invRes, coRes, docRes, matRes] = await Promise.all([
-            supabase.from('purchase_orders').select('*').eq('project_id', projData.id),
+            supabase.from('pos').select('*').eq('project_id', projData.id),
             supabase.from('invoices').select('*').eq('project_id', projData.id),
-            supabase.from('change_orders').select('*').eq('project_id', projData.id),
+            supabase.from('cos').select('*').eq('project_id', projData.id),
             supabase.from('documents').select('*').eq('project_id', projData.id),
             supabase.from('materials').select('*').eq('project_id', projData.id),
           ]);
@@ -181,7 +181,7 @@ export function PlatformProvider({ children }) {
     setPos(prev => [...prev, optimisticPO]);
     if (!isDemoMode) {
       try {
-        const { data } = await supabase.from('purchase_orders').insert([{ ...poData, project_id: activeProject?.id }]).select().single();
+        const { data } = await supabase.from('pos').insert([{ ...poData, project_id: activeProject?.id }]).select().single();
         if (data) setPos(prev => prev.map(p => p.id === optimisticPO.id ? data : p));
       } catch (err) { console.warn("PO save failed:", err.message); }
     }
@@ -203,7 +203,7 @@ export function PlatformProvider({ children }) {
     setCos(prev => [...prev, optimisticCO]);
     if (!isDemoMode) {
       try {
-        const { data } = await supabase.from('change_orders').insert([{ ...coData, project_id: activeProject?.id }]).select().single();
+        const { data } = await supabase.from('cos').insert([{ ...coData, project_id: activeProject?.id }]).select().single();
         if (data) setCos(prev => prev.map(c => c.id === optimisticCO.id ? data : c));
       } catch (err) { console.warn("CO save failed:", err.message); }
     }
