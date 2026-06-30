@@ -9,6 +9,15 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Check for mock demo user first
+    const demoLocal = localStorage.getItem('kncc_demo_user');
+    if (demoLocal) {
+      setUser(JSON.parse(demoLocal));
+      setOrganization({ name: 'KNCC Demo Organization' });
+      setLoading(false);
+      return;
+    }
+
     // Check active sessions and sets the user
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
@@ -47,6 +56,22 @@ export function AuthProvider({ children }) {
   }, []);
 
   const login = async (email, password) => {
+    // 1. Guaranteed Demo Account Bypass
+    if (email === 'demo@kncc.com' && password === 'demo') {
+      const demoUser = {
+        id: 'demo-uuid',
+        email: 'demo@kncc.com',
+        name: 'Demo Engineer',
+        role: 'admin',
+        is_demo: true
+      };
+      setUser(demoUser);
+      setOrganization({ name: 'KNCC Demo Organization' });
+      localStorage.setItem('kncc_demo_user', JSON.stringify(demoUser));
+      return;
+    }
+
+    // 2. Real Supabase Auth
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -83,7 +108,10 @@ export function AuthProvider({ children }) {
   };
 
   const logout = async () => {
+    localStorage.removeItem('kncc_demo_user');
     await supabase.auth.signOut();
+    setUser(null);
+    setOrganization(null);
   };
 
   const setupTestAccount = async (email, password, role, name) => {

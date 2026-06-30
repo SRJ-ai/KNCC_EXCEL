@@ -205,7 +205,7 @@ async def upload_files(
 async def preview_upload(
     filename: str = Form(...),
     doc_type: str = Form(...),
-    project_id: int = Form(...),
+    project_id: str = Form(...),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -223,15 +223,25 @@ async def preview_upload(
             detail=f"File '{safe_name}' not found. Upload it first via POST /api/upload/",
         )
 
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.organization_id == current_user.organization_id
-    ).first()
+    if project_id.startswith("demo-"):
+        project = Project(id=0, name="Demo Project", organization_id=current_user.organization_id)
+        materials = []
+    else:
+        proj_id_int = int(project_id)
+        project = db.query(Project).filter(
+            Project.id == proj_id_int,
+            Project.organization_id == current_user.organization_id
+        ).first()
+        materials = db.query(Material).filter(Material.project_id == proj_id_int).all()
+        
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    doc_data = parse_pdf_document(filepath, doc_type)
-    materials = db.query(Material).filter(Material.project_id == project_id).all()
+    try:
+        doc_data = parse_pdf_document(filepath, doc_type)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to parse PDF: {str(e)}")
+
     excel_rows = _load_excel_row_refs(project.name)
 
     preview_items = []
@@ -332,14 +342,12 @@ async def preview_upload(
 async def confirm_upload(
     filename: str = Form(...),
     doc_type: str = Form(...),
-    project_id: int = Form(...),
+    project_id: str = Form(...),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
     Step 2: Confirm a previously uploaded file for processing.
-    FIX #1: Now correctly looks up the sanitised filename.
-    FIX #13: Rejects duplicate invoice numbers already processed for this project.
     """
     safe_name = os.path.basename(filename)
     filepath = os.path.join(UPLOAD_DIR, safe_name)
@@ -350,7 +358,22 @@ async def confirm_upload(
             detail=f"File '{safe_name}' not found in upload queue. Upload it first via POST /api/upload/",
         )
 
-    project = db.query(Project).filter(Project.id == project_id, Project.organization_id == current_user.organization_id).first()
+    if project_id.startswith("demo-"):
+        # Demo account bypass: just return success without DB writes
+        try:
+            doc_data = parse_pdf_document(filepath, doc_type)
+        except Exception:
+            doc_data = None
+            
+        return {
+            "message": "Demo Document processed successfully (No DB changes)",
+            "document_id": 999,
+            "doc_number": doc_data.number if doc_data else "DEMO-123",
+            "line_items_parsed": len(doc_data.line_items) if doc_data else 0,
+        }
+
+    proj_id_int = int(project_id)
+    project = db.query(Project).filter(Project.id == proj_id_int, Project.organization_id == current_user.organization_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -361,7 +384,7 @@ async def confirm_upload(
 
     if doc_type == "INV" and doc_data.number:
         existing = db.query(Document).filter(
-            Document.project_id == project_id,
+            Document.project_id == proj_id_int,
             Document.doc_number == doc_data.number,
         ).first()
         if existing:
@@ -372,7 +395,7 @@ async def confirm_upload(
 
     try:
         doc = Document(
-            project_id=project_id,
+            project_id=proj_id_int,
             doc_type=doc_type,
             filename=safe_name,
             doc_number=doc_data.number,
@@ -382,14 +405,14 @@ async def confirm_upload(
         db.flush()
 
         if doc_type == "CO":
-            _save_co_adjustments(db, project_id, doc_data, doc.id)
+            _save_co_adjustments(db, proj_id_int, doc_data, doc.id)
 
         # TODO: Add logic to save PO items to Materials table, and Invoice items to mappings/deliveries
         # Currently the platform uses _load_excel_row_refs dynamically, but we should seed Materials 
         # from PO if needed, or Delivery for invoices.
 
         _log_activity(
-            db, project_id,
+            db, proj_id_int,
             action=f"Document Processed: {doc_type}",
             detail=f"{safe_name} | Doc# {doc_data.number} | {len(doc_data.line_items)} line items",
         )

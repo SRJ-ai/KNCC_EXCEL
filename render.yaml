@@ -20,3 +20,16 @@ services:
         value: /tmp/exports
     healthCheckPath: /health
     autoDeploy: true
+
+  - type: web
+    name: kncc-frontend
+    env: static
+    region: oregon
+    plan: free
+    rootDir: platform/frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_BACKEND_URL
+        value: https://kncc-backend.onrender.com
+    autoDeploy: true
