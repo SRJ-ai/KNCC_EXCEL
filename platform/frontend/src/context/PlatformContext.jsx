@@ -236,7 +236,8 @@ export function PlatformProvider({ children }) {
       addPO,
       addInvoice,
       addCO,
-      addMaterial
+      addMaterial,
+      addDocument
     }}>
       {children}
     </PlatformContext.Provider>
