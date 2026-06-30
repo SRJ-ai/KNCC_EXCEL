@@ -1,5 +1,6 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { usePlatform } from '../context/PlatformContext';
 import { motion } from 'framer-motion';
 import {
   LayoutDashboard, Table, UploadCloud, FileText,
@@ -65,7 +66,16 @@ const itemVariants = {
   visible: { opacity: 1, x: 0 }
 };
 
-const Sidebar = () => (
+const Sidebar = () => {
+  const navigate = useNavigate();
+  const { clearActiveProject } = usePlatform();
+  
+  const handleExitProject = () => {
+    clearActiveProject();
+    navigate('/');
+  };
+
+  return (
   <div style={sidebarStyle}>
     {/* Logo */}
     <motion.div 
@@ -105,11 +115,34 @@ const Sidebar = () => (
 
     {/* Footer */}
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }} style={{ paddingTop: '16px', borderTop: '1px solid #111', textAlign: 'center' }}>
+      <button 
+        onClick={handleExitProject}
+        style={{
+          background: 'rgba(255,255,255,0.05)',
+          color: '#ccc',
+          border: '1px solid #222',
+          borderRadius: '8px',
+          padding: '8px 12px',
+          fontSize: '12px',
+          cursor: 'pointer',
+          width: '100%',
+          marginBottom: '12px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '8px'
+        }}
+        onMouseEnter={e => { e.currentTarget.style.background = '#222'; e.currentTarget.style.color = '#fff'; }}
+        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#ccc'; }}
+      >
+        <LayoutDashboard size={14} /> Switch Project
+      </button>
       <div style={{ fontSize: '10px', color: '#222', textTransform: 'uppercase', letterSpacing: '1px' }}>
         A Quantum Pixel Product
       </div>
     </motion.div>
   </div>
-);
+  );
+};
 
 export default Sidebar;

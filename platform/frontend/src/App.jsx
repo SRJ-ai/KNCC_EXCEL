@@ -9,6 +9,7 @@ import TopBar from './components/TopBar';
 import LandingPage from './pages/LandingPage';
 import ProductPage from './pages/ProductPage';
 import ProjectOnboarding from './pages/ProjectOnboarding';
+import ProjectDashboard from './pages/ProjectDashboard';
 import Dashboard from './pages/Dashboard';
 import MaterialGrid from './pages/MaterialGrid';
 import UploadCenter from './pages/UploadCenter';
@@ -36,9 +37,9 @@ function ProtectedLayout() {
   }
   if (!user) return <Navigate to="/login" replace />;
 
-  // Only redirect to onboarding if FULLY loaded and still no project
-  if (!activeProject && window.location.pathname !== '/onboarding') {
-    return <Navigate to="/onboarding" replace />;
+  // If no project is active, they can only access the root (ProjectDashboard) or onboarding
+  if (!activeProject && window.location.pathname !== '/' && window.location.pathname !== '/onboarding') {
+    return <Navigate to="/" replace />;
   }
 
   return (
@@ -70,12 +71,15 @@ function App() {
   return (
     <>
       <Routes>
-        <Route path="/" element={<LandingPage />} />
+        {/* Public Routes */}
+        <Route path="/landing" element={<LandingPage />} />
         <Route path="/product" element={<ProductPage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         
+        {/* Protected Routes */}
         <Route element={<ProtectedLayout />}>
+          <Route path="/" element={<ProjectDashboard />} />
           <Route path="/onboarding" element={<ProjectOnboarding />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/grid" element={<MaterialGrid />} />

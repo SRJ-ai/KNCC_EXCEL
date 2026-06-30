@@ -110,37 +110,18 @@ export function PlatformProvider({ children }) {
           return;
         }
 
-        // Try fetching a real project from Supabase
-        // Projects are scoped to the auth user via RLS
+        // Try fetching all real projects from Supabase
         const { data: projData, error: projErr } = await supabase
           .from('projects')
           .select('*')
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+          .order('created_at', { ascending: false });
 
         if (projErr) console.warn("Project fetch error (may be RLS):", projErr.message);
 
-          if (projData) {
+        if (projData && projData.length > 0) {
           setIsDemoMode(false);
-          setProjects([projData]);
-          setActiveProject(projData);
-
-          const [poRes, invRes, coRes, docRes, matRes] = await Promise.all([
-            supabase.from('pos').select('*').eq('project_id', projData.id),
-            supabase.from('invoices').select('*').eq('project_id', projData.id),
-            supabase.from('cos').select('*').eq('project_id', projData.id),
-            supabase.from('documents').select('*').eq('project_id', projData.id),
-            supabase.from('materials').select('*').eq('project_id', projData.id),
-          ]);
-
-          if (poRes.data) setPos(poRes.data);
-          if (invRes.data) setInvoices(invRes.data);
-          if (coRes.data) setCos(coRes.data);
-          if (docRes.data) setDocuments(docRes.data);
-          if (matRes.data) setMaterials(matRes.data);
+          setProjects(projData);
         } else {
-          // No project found → load demo data automatically
           console.log("No project found. Loading Cobia Cove demo.");
           setProjects(DEMO_PROJECTS);
           loadDemoProject(DEMO_PROJECTS[0]);
@@ -149,31 +130,37 @@ export function PlatformProvider({ children }) {
         console.error("Failed to fetch platform data, falling back to demo:", err);
         setProjects(DEMO_PROJECTS);
         loadDemoProject(DEMO_PROJECTS[0]);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     fetchData();
-  }, [user, organization]);
+  }, [user]);
+
+  const clearActiveProject = () => {
+    setActiveProject(null);
+    setPos([]); setInvoices([]); setCos([]); setDocuments([]); setMaterials([]);
+  };
 
   const createProject = async (projectData) => {
-    // In demo mode or if DB insert fails, just set locally
     try {
       const { data, error } = await supabase.from('projects').insert([projectData]).select().single();
+      if (error) throw error;
       if (data) {
         setIsDemoMode(false);
-        setActiveProject(data);
-        setPos([]); setInvoices([]); setCos([]); setDocuments([]); setMaterials([]);
-        return;
+        setProjects([data, ...projects]);
+        switchProject(data.id);
+        return data;
       }
-      if (error) throw error;
     } catch (err) {
-      console.warn("DB project creation failed, using local state:", err.message);
+      console.error("Project creation failed:", err.message);
+      // Fallback for demo mode
+      const newProj = { id: `local-${Date.now()}`, ...projectData, created_at: new Date().toISOString() };
+      setProjects([newProj, ...projects]);
+      switchProject(newProj.id);
+      return newProj;
     }
-    // Fallback to local state
-    setIsDemoMode(false);
-    setActiveProject({ id: `local-${Date.now()}`, ...projectData, created_at: new Date().toISOString() });
-    setPos([]); setInvoices([]); setCos([]); setDocuments([]); setMaterials([]);
   };
 
   const addPO = async (poData) => {
@@ -237,6 +224,7 @@ export function PlatformProvider({ children }) {
       activeProject,
       setActiveProject,
       switchProject,
+      clearActiveProject,
       pos,
       invoices,
       cos,

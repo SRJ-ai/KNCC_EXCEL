@@ -56,22 +56,6 @@ export function AuthProvider({ children }) {
   }, []);
 
   const login = async (email, password) => {
-    // 1. Guaranteed Demo Account Bypass
-    if (email === 'demo@kncc.com' && password === 'demo') {
-      const demoUser = {
-        id: 'demo-uuid',
-        email: 'demo@kncc.com',
-        name: 'Demo Engineer',
-        role: 'admin',
-        is_demo: true
-      };
-      setUser(demoUser);
-      setOrganization({ name: 'KNCC Demo Organization' });
-      localStorage.setItem('kncc_demo_user', JSON.stringify(demoUser));
-      return;
-    }
-
-    // 2. Real Supabase Auth
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
