@@ -1,55 +1,79 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Filter, Download, Trash2, Edit3 } from 'lucide-react';
+import { Search, Filter, Download, FileSpreadsheet } from 'lucide-react';
 import { usePlatform } from '../context/PlatformContext';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import * as XLSX from 'xlsx';
 import './MaterialGrid.css';
+
+const EXCEL_COLS = [
+  { key: 'type', label: 'Type' },
+  { key: 'qty', label: 'Qty', align: 'right' },
+  { key: 'co_qty', label: 'CO Qty', align: 'right' },
+  { key: 'po_co_qty', label: 'PO+CO Qty', align: 'right' },
+  { key: 'thickness', label: 'Thickness', align: 'right' },
+  { key: 'spacer_x1', label: 'X', align: 'center', virtual: 'X' },
+  { key: 'width', label: 'Width', align: 'right' },
+  { key: 'spacer_x2', label: 'X', align: 'center', virtual: 'X' },
+  { key: 'length', label: 'Length', align: 'right' },
+  { key: 'material_type', label: 'Material Type', width: 250 },
+  { key: 'lf_pcs', label: 'L/F (Pcs)', align: 'right' },
+  { key: 'bf_sf', label: 'B/F or S/F', align: 'right' },
+  { key: 'cost_mbf', label: 'Cost / MBF', align: 'right', isCurrency: true },
+  { key: 'total_cost', label: 'Total Cost', align: 'right', isCurrency: true, highlight: true },
+  { key: 'total_cost_tax', label: 'Total Cost w/Tax', align: 'right', isCurrency: true },
+  { key: 'invoice_refs', label: 'Invoice #' },
+  { key: 'total_delivered', label: 'Total Delivered', align: 'right', highlight: true, highlightColor: '#10B981' },
+  { key: 'delivered_lf', label: 'Delivered L/F', align: 'right' },
+  { key: 'delivered_bf_sf', label: 'Delivered BF/SF', align: 'right' },
+  { key: 'delivered_cost', label: 'Delivered Cost', align: 'right', isCurrency: true },
+  { key: 'delivered_cost_tax', label: 'Delivered Cost w/Tax', align: 'right', isCurrency: true },
+  { key: 'pct_delivery', label: '% Delivery', align: 'right', isPct: true },
+  { key: 'inv_bundles', label: 'Inv Bundles', align: 'right' },
+  { key: 'inv_uom', label: 'Inv UoM' },
+  { key: 'pcs_per_bundle', label: 'Pcs/Bundle', align: 'right' },
+  { key: 'inv_pcs', label: 'Inv Pcs', align: 'right' },
+  { key: 'issues', label: 'Issues', align: 'right', highlight: true, highlightColor: '#EF4444' },
+  { key: 'issues_lf', label: 'Issues L/F', align: 'right' },
+  { key: 'issues_bf_sf', label: 'Issues BF/SF', align: 'right' },
+  { key: 'pct_issued', label: '% Issued', align: 'right', isPct: true },
+  { key: 'issues_cost', label: 'Issues Cost', align: 'right', isCurrency: true },
+  { key: 'issues_cost_tax', label: 'Issues Cost w/Tax', align: 'right', isCurrency: true },
+  { key: 'variance_code', label: 'Variance Code' },
+  { key: 'reason', label: 'Reason' }
+];
+
+function fmt(val, isCurrency, isPct) {
+  if (val === null || val === undefined || val === '') return '';
+  if (isCurrency) return `$${Number(val).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (isPct) return `${Number(val).toFixed(1)}%`;
+  if (typeof val === 'number') return val.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  return val;
+}
 
 export default function MaterialGrid() {
   const { materials, activeProject } = usePlatform();
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedIds, setSelectedIds] = useState(new Set());
-  const [filterCategory, setFilterCategory] = useState('All');
+  const [filterType, setFilterType] = useState('All');
 
-  // Derive categories from real data
-  const categories = useMemo(() => {
-    const cats = new Set(materials.map(m => m.category || 'Uncategorized'));
-    return ['All', ...Array.from(cats)];
+  const types = useMemo(() => {
+    const ts = new Set(materials.map(m => m.type || 'Unknown'));
+    return ['All', ...Array.from(ts)];
   }, [materials]);
 
   const filteredMaterials = materials.filter(m => {
-    const matchesSearch = (m.description || m.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          (m.item_code || m.id || '').toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = filterCategory === 'All' || (m.category || 'Uncategorized') === filterCategory;
-    return matchesSearch && matchesCategory;
+    const matchesSearch = (m.material_type || '').toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesType = filterType === 'All' || (m.type || 'Unknown') === filterType;
+    return matchesSearch && matchesType;
   });
 
-  const toggleSelectAll = () => {
-    if (selectedIds.size === filteredMaterials.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(filteredMaterials.map(m => m.id)));
-    }
-  };
-
-  const toggleSelect = (id) => {
-    const next = new Set(selectedIds);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    setSelectedIds(next);
-  };
-
   const handleExport = () => {
-    const dataToExport = filteredMaterials.map(m => ({
-      'Item Code': m.item_code || m.id,
-      'Description': m.description || m.name,
-      'Category': m.category || 'Uncategorized',
-      'Quantity': m.quantity || m.stock || 0,
-      'UOM': m.uom || m.unit || 'ea',
-      'Unit Price': m.unit_price || 0,
-      'Total Amount': m.amount || ((m.quantity || 0) * (m.unit_price || 0)),
-      'Source Document': m.source_document || 'Manual'
-    }));
+    const dataToExport = filteredMaterials.map(m => {
+      const row = {};
+      EXCEL_COLS.forEach(c => {
+        row[c.label] = c.virtual || m[c.key];
+      });
+      return row;
+    });
     const ws = XLSX.utils.json_to_sheet(dataToExport);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Materials");
@@ -58,107 +82,99 @@ export default function MaterialGrid() {
 
   return (
     <motion.div 
-      className="grid-container"
+      className="exc-grid-container"
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
     >
-      <div className="grid-header">
+      <div className="exc-grid-header">
         <div>
-          <h1 className="grid-title">Material Inventory</h1>
-          <p style={{ color: '#a1a1aa', fontSize: '0.875rem', marginTop: '0.25rem' }}>
-            {filteredMaterials.length} items found
+          <h1 className="exc-grid-title">
+            <FileSpreadsheet size={24} color="#10B981" />
+            Client_Requirments_Doc.xlsx — {activeProject?.name || 'No Project'}
+          </h1>
+          <p className="exc-grid-subtitle">
+            {filteredMaterials.length === 0 
+              ? "Sheet structure loaded. Upload POs to populate materials."
+              : `${filteredMaterials.length} materials tracked · Live Excel View`}
           </p>
         </div>
-        <div className="grid-controls">
-          <div style={{ position: 'relative' }}>
-            <Search size={18} color="#a1a1aa" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+        <div className="exc-grid-controls">
+          <div className="exc-search-wrapper">
+            <Search size={16} color="#a1a1aa" />
             <input 
               type="text" 
-              className="search-input" 
-              placeholder="Search code or description..." 
+              placeholder="Search description..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
           
           <select 
-            className="filter-select"
-            value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
+            className="exc-filter-select"
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value)}
           >
-            {categories.map(c => <option key={c} value={c}>{c}</option>)}
+            {types.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
 
-          <button onClick={handleExport} className="export-btn">
-            <Download size={18} /> Export
+          <button onClick={handleExport} className="exc-export-btn">
+            <Download size={16} /> Export to Excel
           </button>
         </div>
       </div>
 
-      <AnimatePresence>
-        {selectedIds.size > 0 && (
-          <motion.div 
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="bulk-actions"
-          >
-            <span style={{ color: '#fff', fontSize: '0.875rem' }}>{selectedIds.size} selected</span>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button className="bulk-btn"><Edit3 size={16}/> Edit Selected</button>
-              <button className="bulk-btn danger"><Trash2 size={16}/> Delete</button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <div className="table-container">
-        <table className="data-table">
+      <div className="exc-table-wrapper">
+        <table className="exc-native-table">
           <thead>
             <tr>
-              <th style={{ width: '40px' }}>
-                <input 
-                  type="checkbox" 
-                  checked={filteredMaterials.length > 0 && selectedIds.size === filteredMaterials.length}
-                  onChange={toggleSelectAll}
-                />
-              </th>
-              <th>Item Code</th>
-              <th>Description</th>
-              <th>Category</th>
-              <th style={{ textAlign: 'right' }}>Quantity</th>
-              <th>UOM</th>
-              <th style={{ textAlign: 'right' }}>Unit Price</th>
-              <th style={{ textAlign: 'right' }}>Total</th>
-              <th>Source Document</th>
+              <th className="row-num-col"></th>
+              {EXCEL_COLS.map((col, i) => (
+                <th 
+                  key={i} 
+                  style={{ 
+                    minWidth: col.width || (col.label.length * 8 + 30) + 'px',
+                    textAlign: col.align || 'left',
+                    color: col.highlightColor || '#a1a1aa'
+                  }}
+                >
+                  {col.label}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {filteredMaterials.length === 0 ? (
-              <tr>
-                <td colSpan="9" style={{ textAlign: 'center', padding: '3rem', color: '#52525b' }}>
-                  No materials found. Upload a PO or Invoice to populate this grid.
-                </td>
-              </tr>
+              // Empty rows for structure
+              Array.from({ length: 15 }).map((_, i) => (
+                <tr key={i}>
+                  <td className="row-num-col">{i + 3}</td>
+                  {EXCEL_COLS.map((col, j) => (
+                    <td key={j} style={{ textAlign: col.align || 'left', opacity: 0.3 }}>
+                      {col.virtual ? col.virtual : ''}
+                    </td>
+                  ))}
+                </tr>
+              ))
             ) : (
-              filteredMaterials.map(item => (
-                <tr key={item.id} className={selectedIds.has(item.id) ? 'selected-row' : ''}>
-                  <td>
-                    <input 
-                      type="checkbox" 
-                      checked={selectedIds.has(item.id)}
-                      onChange={() => toggleSelect(item.id)}
-                    />
-                  </td>
-                  <td style={{ fontFamily: 'monospace', color: '#3B82F6' }}>{item.item_code || item.id?.split('-')[0]}</td>
-                  <td style={{ fontWeight: 500 }}>{item.description || item.name}</td>
-                  <td style={{ color: '#a1a1aa' }}>{item.category || 'Material'}</td>
-                  <td style={{ textAlign: 'right' }}>{(item.quantity || item.stock || 0).toLocaleString()}</td>
-                  <td>{item.uom || item.unit || 'ea'}</td>
-                  <td style={{ textAlign: 'right' }}>${Number(item.unit_price || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                  <td style={{ textAlign: 'right', fontWeight: 600 }}>${Number(item.amount || ((item.quantity||0)*(item.unit_price||0))).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                  <td style={{ color: '#a1a1aa', fontSize: '0.8rem' }}>{item.source_document || 'Manual Entry'}</td>
+              filteredMaterials.map((item, idx) => (
+                <tr key={item.id || idx}>
+                  <td className="row-num-col">{idx + 3}</td>
+                  {EXCEL_COLS.map((col, j) => {
+                    const val = col.virtual || item[col.key];
+                    return (
+                      <td 
+                        key={j} 
+                        style={{ 
+                          textAlign: col.align || 'left',
+                          color: col.highlightColor,
+                          fontWeight: col.highlight ? 700 : 400
+                        }}
+                      >
+                        {fmt(val, col.isCurrency, col.isPct)}
+                      </td>
+                    );
+                  })}
                 </tr>
               ))
             )}
