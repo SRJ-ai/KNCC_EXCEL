@@ -14,10 +14,21 @@ export default function ProjectOnboarding() {
     client: ''
   });
 
-  const handleSubmit = (e) => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    createProject(formData);
-    navigate('/dashboard'); // Go to dashboard immediately after creation
+    setLoading(true);
+    setError(null);
+    try {
+      await createProject(formData);
+      navigate('/dashboard'); // Go to dashboard immediately after creation
+    } catch (err) {
+      setError(err.message || 'Failed to create project');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -26,6 +37,8 @@ export default function ProjectOnboarding() {
         <h1 className="onboarding-title">Create New Project</h1>
         <p className="onboarding-subtitle">Set up your construction project to begin tracking materials, purchase orders, and documents.</p>
         
+        {error && <div style={{ color: 'red', marginBottom: '1rem', padding: '0.5rem', background: '#ffebee', borderRadius: '4px' }}>{error}</div>}
+
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label className="form-label">Project Name</label>
@@ -75,7 +88,9 @@ export default function ProjectOnboarding() {
             />
           </div>
 
-          <button type="submit" className="submit-btn">Initialize Project Workspace</button>
+          <button type="submit" className="submit-btn" disabled={loading}>
+            {loading ? 'Creating...' : 'Initialize Project Workspace'}
+          </button>
         </form>
       </div>
     </div>

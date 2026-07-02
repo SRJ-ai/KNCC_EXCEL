@@ -10,7 +10,10 @@ from openpyxl.utils import get_column_letter
 from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models.mapping import ItemMapping
+from ..models import Project, User
+from ..dependencies import get_current_user
 from ..services.excel_generator import process_invoices_for_sheet, process_change_orders_for_sheet
+from ..services.excel_sync import sync_excel_for_project
 
 router = APIRouter()
 
@@ -429,6 +432,36 @@ async def get_unmatched_items(req: ExportDataRequest, db: Session = Depends(get_
         wb.close()
         return {"unmatched": unmatched, "matched_count": len(matched)}
         
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{project_id}")
+async def export_project_excel(
+    project_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    project = db.query(Project).filter(
+        Project.id == project_id,
+        Project.organization_id == current_user.organization_id
+    ).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+        
+    try:
+        excel_file_path = sync_excel_for_project(db, project)
+        if not os.path.exists(excel_file_path):
+            raise HTTPException(status_code=500, detail="Generated excel file not found")
+        
+        filename = os.path.basename(excel_file_path)
+        return FileResponse(
+            excel_file_path,
+            filename=filename,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
     except Exception as e:
         import traceback
         traceback.print_exc()

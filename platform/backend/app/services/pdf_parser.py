@@ -67,6 +67,8 @@ def parse_date(s: str) -> Optional[datetime]:
     return None
 
 
+import pdfplumber
+
 def extract_text_from_pdf(filepath: str) -> str:
     try:
         with pdfplumber.open(filepath) as pdf:
@@ -184,23 +186,46 @@ def parse_pdf_document(filepath: str, doc_type: str) -> DocumentDataModel:
         if m_date:
             doc.date = parse_date(m_date.group(1))
 
-        # CO line items: footage  UOM  price  qty  UOM  amount/UOM  description
-        co_pattern = re.compile(
+        # CO line items:
+        # Format 1 (Original): footage  UOM  price  qty  UOM  amount/UOM  description
+        co_pattern_1 = re.compile(
             r'([\d,]+)\s+(BF|SF|LF|EA)\s+([\d,.]+)\s+([\d,]+)\s+(PC|EA|LF)\s+(-?[\d,]+\.?\d*)\s*/(MBF|MSF|PC|EA|LF)\s+(.*)',
             re.IGNORECASE
         )
+        # Format 2 (New): Ordered_Qty UOM | Description | Footage Footage_UOM | Price/Price_UOM | Amount
+        co_pattern_2 = re.compile(
+            r'([\d,]+)\s*(LF|PC|EA|BF)\s*\|?\s*(.*?)\s+([\d,.]+)\s*(BF|SF|LF|EA)\s+([\d,.]+)\s*/\s*(MBF|MSF|PC|EA|LF)\s+(-?[\d,]+\.?\d*)',
+            re.IGNORECASE
+        )
         for i, line in enumerate(lines):
-            m = co_pattern.search(line.strip())
-            if m:
+            m1 = co_pattern_1.search(line.strip())
+            if m1:
                 item = LineItemModel(
-                    footage=parse_number(m.group(1)),
-                    footage_uom=m.group(2).upper(),
-                    unit_price=parse_number(m.group(3)),
-                    quantity=parse_number(m.group(4)),
-                    uom=m.group(5).upper(),
-                    amount=parse_number(m.group(6)),
-                    price_uom=m.group(7).upper(),
-                    description=m.group(8).strip(),
+                    footage=parse_number(m1.group(1)),
+                    footage_uom=m1.group(2).upper(),
+                    unit_price=parse_number(m1.group(3)),
+                    quantity=parse_number(m1.group(4)),
+                    uom=m1.group(5).upper(),
+                    amount=parse_number(m1.group(6)),
+                    price_uom=m1.group(7).upper(),
+                    description=m1.group(8).strip(),
+                )
+                search_block = line + " " + " ".join(lines[i+1:i+3])
+                item.dimensions = _extract_dimensions(search_block)
+                doc.line_items.append(item)
+                continue
+                
+            m2 = co_pattern_2.search(line.strip())
+            if m2:
+                item = LineItemModel(
+                    quantity=parse_number(m2.group(1)),
+                    uom=m2.group(2).upper(),
+                    description=m2.group(3).strip(),
+                    footage=parse_number(m2.group(4)),
+                    footage_uom=m2.group(5).upper(),
+                    unit_price=parse_number(m2.group(6)),
+                    price_uom=m2.group(7).upper(),
+                    amount=parse_number(m2.group(8)),
                 )
                 search_block = line + " " + " ".join(lines[i+1:i+3])
                 item.dimensions = _extract_dimensions(search_block)
@@ -213,5 +238,50 @@ def parse_pdf_document(filepath: str, doc_type: str) -> DocumentDataModel:
         m_date = re.search(r'Date\s*[:\s]*(\d{1,2}/\d{1,2}/\d{4})', text, re.IGNORECASE)
         if m_date:
             doc.date = parse_date(m_date.group(1))
+
+        po_pattern = re.compile(
+            r'^(Lumber|Panels|EWP|Each|Hardware|Invoice|LVL)\s+([\d,]+)\s+(.*?)\s+([\d,]+)(?:\s+([\d,]+))?\s+([\d,.]+)\s+\$\s*(-?[\d,]+\.\d{2})',
+            re.IGNORECASE
+        )
+
+        for line in lines:
+            m_po = po_pattern.match(line.strip())
+            if m_po:
+                category, quantity_str, desc, fd1, fd2, price_str, total_str = m_po.groups()
+                
+                # Dimension extraction
+                dimensions = ""
+                if category.lower() == "panels":
+                    dm2 = re.search(r'^(\d+)\s*[xX]\s*([\d.]+)\b', desc)
+                    if dm2:
+                        dimensions = f"{dm2.group(1)}X{int(float(dm2.group(2)))}"
+                else:
+                    dm3 = re.search(r'^(\d+)\s*[xX]\s*([\d.]+)\s+(\d+)\b', desc)
+                    if dm3:
+                        dimensions = f"{dm3.group(1)}X{int(float(dm3.group(2)))}X{dm3.group(3)}"
+                    else:
+                        dm2 = re.search(r'^(\d+)\s*[xX]\s*([\d.]+)\b', desc)
+                        if dm2:
+                            dimensions = f"{dm2.group(1)}X{int(float(dm2.group(2)))}"
+
+                # Calculate footage / footage_uom / price_uom
+                footage = parse_number(fd1)
+                footage_uom = "LF" if category.lower() != "panels" else "SF"
+                uom = "EA" if category.lower() == "each" else "PC"
+                price_uom = "MBF" if category.lower() == "lumber" else ("MSF" if category.lower() == "panels" else "LF")
+
+                item = LineItemModel(
+                    quantity=parse_number(quantity_str),
+                    uom=uom,
+                    item_code="",
+                    description=desc.strip(),
+                    footage=footage,
+                    footage_uom=footage_uom,
+                    unit_price=parse_number(price_str),
+                    price_uom=price_uom,
+                    amount=parse_number(total_str),
+                    dimensions=dimensions
+                )
+                doc.line_items.append(item)
 
     return doc

@@ -21,7 +21,7 @@ from ..models.user import User
 
 from ..database import get_db
 from ..config import UPLOAD_DIR, LEGACY_EXCEL
-from ..models import Document, Project, COAdjustment, Material, Activity
+from ..models import Document, Project, COAdjustment, Material, Activity, Delivery, ItemMapping
 from ..services.classifier import classify_document
 from ..services.pdf_parser import parse_pdf_document
 
@@ -122,11 +122,15 @@ def _match_line_to_material(item, materials, excel_rows: list) -> dict:
     }
 
 
+_excel_row_refs_cache = {}
+
 def _load_excel_row_refs(project_name: str) -> list:
     """
     Load lightweight row references from Client_Requirments_Doc.xlsx.
     Returns list of {row, sheet, type, description} dicts.
     """
+    if project_name in _excel_row_refs_cache:
+        return _excel_row_refs_cache[project_name]
     if not os.path.exists(LEGACY_EXCEL):
         return []
     try:
@@ -143,6 +147,7 @@ def _load_excel_row_refs(project_name: str) -> list:
                 sheet_name = sn
                 break
         if not sheet_name:
+            wb.close()
             return []
         ws = wb[sheet_name]
         rows = []
@@ -156,6 +161,8 @@ def _load_excel_row_refs(project_name: str) -> list:
                     "type": str(type_val).strip(),
                     "description": str(mat_val).strip() if mat_val else str(type_val).strip(),
                 })
+        wb.close()
+        _excel_row_refs_cache[project_name] = rows
         return rows
     except Exception as e:
         print(f"Excel row ref load error: {e}")
@@ -218,10 +225,21 @@ async def preview_upload(
     filepath = os.path.join(UPLOAD_DIR, safe_name)
 
     if not os.path.exists(filepath):
-        raise HTTPException(
-            status_code=404,
-            detail=f"File '{safe_name}' not found. Upload it first via POST /api/upload/",
-        )
+        from ..config import PROJECT_ROOT
+        client_dir = os.path.join(PROJECT_ROOT, "Client")
+        found = False
+        if os.path.exists(client_dir):
+            for r, _, files in os.walk(client_dir):
+                if safe_name in files:
+                    os.makedirs(UPLOAD_DIR, exist_ok=True)
+                    shutil.copy2(os.path.join(r, safe_name), filepath)
+                    found = True
+                    break
+        if not found:
+            raise HTTPException(
+                status_code=404,
+                detail=f"File '{safe_name}' not found. Upload it first via POST /api/upload/",
+            )
 
     if project_id.startswith("demo-"):
         project = Project(id=0, name="Demo Project", organization_id=current_user.organization_id)
@@ -353,10 +371,21 @@ async def confirm_upload(
     filepath = os.path.join(UPLOAD_DIR, safe_name)
 
     if not os.path.exists(filepath):
-        raise HTTPException(
-            status_code=404,
-            detail=f"File '{safe_name}' not found in upload queue. Upload it first via POST /api/upload/",
-        )
+        from ..config import PROJECT_ROOT
+        client_dir = os.path.join(PROJECT_ROOT, "Client")
+        found = False
+        if os.path.exists(client_dir):
+            for r, _, files in os.walk(client_dir):
+                if safe_name in files:
+                    os.makedirs(UPLOAD_DIR, exist_ok=True)
+                    shutil.copy2(os.path.join(r, safe_name), filepath)
+                    found = True
+                    break
+        if not found:
+            raise HTTPException(
+                status_code=404,
+                detail=f"File '{safe_name}' not found in upload queue. Upload it first via POST /api/upload/",
+            )
 
     if project_id.startswith("demo-"):
         # Demo account bypass: just return success without DB writes
@@ -407,9 +436,63 @@ async def confirm_upload(
         if doc_type == "CO":
             _save_co_adjustments(db, proj_id_int, doc_data, doc.id)
 
-        # TODO: Add logic to save PO items to Materials table, and Invoice items to mappings/deliveries
-        # Currently the platform uses _load_excel_row_refs dynamically, but we should seed Materials 
-        # from PO if needed, or Delivery for invoices.
+        if doc_type == "PO":
+            from ..services.calculator import compute_material_totals
+            from ..services.excel_generator import classify_item_category
+            for item in doc_data.line_items:
+                category = classify_item_category(item.description or "", item.item_code or "")
+                t, w, l = None, None, None
+                if item.dimensions:
+                    dm = re.search(r"(\d+)[Xx](\d+)[Xx](\d+)", item.dimensions.strip())
+                    if dm:
+                        t = float(dm.group(1))
+                        w = float(dm.group(2))
+                        l = float(dm.group(3))
+                mat = Material(
+                    project_id=proj_id_int,
+                    type=category,
+                    qty=item.quantity,
+                    co_qty=0.0,
+                    po_co_qty=item.quantity,
+                    thickness=t,
+                    width=w,
+                    length=l,
+                    material_type=item.description,
+                    cost_mbf=item.unit_price,
+                )
+                totals = compute_material_totals(mat, project.tax_rate)
+                mat.lf_pcs = totals.get("lf_pcs", 0.0)
+                mat.bf_sf = totals.get("bf_sf", 0.0)
+                mat.total_cost = totals.get("total_cost", 0.0)
+                mat.total_cost_tax = totals.get("total_cost_tax", 0.0)
+                db.add(mat)
+
+        if doc_type == "INV":
+            for item in doc_data.line_items:
+                mapping = db.query(ItemMapping).filter(
+                    ItemMapping.invoice_description == item.description,
+                    ItemMapping.project_id == proj_id_int
+                ).first()
+                matched_material_id = None
+                if mapping:
+                    matched_material_id = mapping.material_id
+                else:
+                    materials = db.query(Material).filter(Material.project_id == proj_id_int).all()
+                    excel_rows = _load_excel_row_refs(project.name)
+                    match_res = _match_line_to_material(item, materials, excel_rows)
+                    if match_res["matched"]:
+                        matched_material_id = match_res["material_id"]
+                if matched_material_id is not None:
+                    deliv = Delivery(
+                        material_id=matched_material_id,
+                        document_id=doc.id,
+                        invoice_number=doc_data.number,
+                        ship_date=doc_data.date,
+                        quantity=item.quantity,
+                        qty_multiplier=1.0,
+                        uom=item.uom,
+                    )
+                    db.add(deliv)
 
         _log_activity(
             db, proj_id_int,

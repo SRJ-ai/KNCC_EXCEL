@@ -1,0 +1,3 @@
+## 2026-07-02T16:11:48Z
+
+Analyze the codebase regarding Excel generation (R1) and Change Order parsing/UI (R3). Find where Excel is generated (e.g., excel_generator.py, excel_sync.py, excel_importer.py, etc.) and how it depends on templates. Detail how to rewrite this to generate client_req_doc from scratch with all required formulas using openpyxl. Also, analyze how Change Orders are currently processed and mapped, and how the React UI can prompt users for confirmation before applying any row/material changes from a CO. Write your analysis to c:\Users\Admin\Desktop\KNCC_EXCEL\.agents\explorer_r1_r3\analysis.md and notify the parent when done.

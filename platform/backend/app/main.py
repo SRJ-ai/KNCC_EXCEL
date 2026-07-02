@@ -19,56 +19,39 @@ app = FastAPI(title="KNCC Platform API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:5173",    # Vite dev server
+        "http://localhost:3000",    # Alt dev server
+        "https://kncc-excel.vercel.app",  # Production frontend
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
 )
-
-def seed_demo_accounts():
-    from .models.user import User
-    from .models.organization import Organization
-    from .core.security import get_password_hash
-    db = SessionLocal()
-    try:
-        # Check if org exists
-        org = db.query(Organization).filter_by(name="KNCC Demo Org").first()
-        if not org:
-            org = Organization(name="KNCC Demo Org")
-            db.add(org)
-            db.commit()
-            db.refresh(org)
-        
-        # Admin
-        if not db.query(User).filter_by(email="admin@kncc.com").first():
-            admin = User(
-                email="admin@kncc.com",
-                name="Demo Admin",
-                hashed_password=get_password_hash("password123"),
-                role="admin",
-                organization_id=org.id
-            )
-            db.add(admin)
-            
-        # Engineer
-        if not db.query(User).filter_by(email="engineer@kncc.com").first():
-            engineer = User(
-                email="engineer@kncc.com",
-                name="Demo Engineer",
-                hashed_password=get_password_hash("password123"),
-                role="member",
-                organization_id=org.id
-            )
-            db.add(engineer)
-            
-        db.commit()
-    finally:
-        db.close()
 
 @app.on_event("startup")
 def on_startup():
     init_db()
-    seed_demo_accounts()
+    # NOTE: Demo account seeding has been removed.
+    # Accounts are now created through the proper /api/auth/register endpoint
+    # or directly in Supabase Auth dashboard.
+    
+    # Automatically inject test accounts to Supabase (R4)
+    try:
+        try:
+            from inject_test_accounts import inject_accounts
+        except ImportError:
+            import sys
+            import os
+            backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            if backend_dir not in sys.path:
+                sys.path.insert(0, backend_dir)
+            from inject_test_accounts import inject_accounts
+        inject_accounts()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Failed to run Supabase test account injection on startup: {e}")
+
 
 app.include_router(api_router, prefix="/api")
 

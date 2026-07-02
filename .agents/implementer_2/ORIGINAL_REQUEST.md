@@ -1,0 +1,7 @@
+## 2026-07-02T16:15:28Z
+
+Implement R2 (Data Persistence) and R3 (Interactive Row Changes) in the React frontend.
+1. Modify `platform/frontend/src/pages/UploadCenter.jsx` to cache the staging/wizard states (`step`, `docType`, `uploadedFile`, `preview`, `lastResult`) using `localStorage` keyed by project ID (e.g. `kncc_upload_[activeProject.id]_[state]`). Rehydrate the state when the component mounts or when `activeProject` changes. Clear the cached states when the user confirms, discards, or resets.
+2. Modify `platform/frontend/src/pages/UploadPreviewPage.jsx` to intercept the confirm action if the document type is `CO` (Change Order). Before executing `onConfirm()`, display a modal prompt asking the user for confirmation. The modal must list the specific material rows, descriptions, and delta quantities, styling it cleanly according to the project's glass-card design. Show the modal when 'Apply Changes' is clicked, and call `onConfirm()` only when they click confirm in the modal.
+3. Verify that the UI builds correctly with `npm run build` or by checking for compilation errors. Write your changes and handoff report to `C:\Users\Admin\Desktop\KNCC_EXCEL\.agents\implementer_2`.
+MANDATORY INTEGRITY WARNING: DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results, create dummy/facade implementations, or circumvent the intended task. A Forensic Auditor will independently verify your work.

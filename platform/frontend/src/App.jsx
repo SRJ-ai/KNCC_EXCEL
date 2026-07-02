@@ -1,5 +1,5 @@
 import React from 'react';
-import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -26,6 +26,7 @@ import Register from './pages/Register';
 function ProtectedLayout() {
   const { user, loading: authLoading } = useAuth();
   const { activeProject, loading: platformLoading } = usePlatform();
+  const location = useLocation();
   
   if (authLoading || platformLoading) {
     return (
@@ -38,7 +39,7 @@ function ProtectedLayout() {
   if (!user) return <Navigate to="/login" replace />;
 
   // If no project is active, they can only access the root (ProjectDashboard) or onboarding
-  if (!activeProject && window.location.pathname !== '/' && window.location.pathname !== '/onboarding') {
+  if (!activeProject && location.pathname !== '/' && location.pathname !== '/onboarding') {
     return <Navigate to="/" replace />;
   }
 

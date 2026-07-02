@@ -1,4 +1,4 @@
-import React, { useRef, useState, useCallback } from 'react';
+import React, { useRef, useState, useCallback, useEffect } from 'react';
 import {
   UploadCloud, FileText, CheckCircle2, Loader2,
   X, ChevronRight, FileSearch, Info, AlertCircle
@@ -6,6 +6,7 @@ import {
 import { usePlatform } from '../context/PlatformContext';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../supabaseClient';
+import { Link } from 'react-router-dom';
 import UploadPreviewPage from './UploadPreviewPage';
 import './UploadCenter.css';
 
@@ -35,7 +36,7 @@ function StepBar({ step }) {
 }
 
 export default function UploadCenter() {
-  const { documents, addDocument, activeProject, isDemoMode } = usePlatform();
+  const { documents, addDocument, activeProject } = usePlatform();
   const { user } = useAuth();
   const fileInputRef = useRef(null);
 
@@ -51,12 +52,81 @@ export default function UploadCenter() {
   const [error, setError]         = useState('');
   const [dragOver, setDragOver]   = useState(false);
 
+  const [rehydratedProjId, setRehydratedProjId] = useState(null);
+  const skipSaveRef = useRef(false);
+
+  const safeParse = (val, fallback) => {
+    if (val === null) return fallback;
+    try {
+      return JSON.parse(val);
+    } catch (e) {
+      return fallback;
+    }
+  };
+
+  const clearCachedStates = useCallback((projectId) => {
+    if (!projectId) return;
+    localStorage.removeItem(`kncc_upload_${projectId}_step`);
+    localStorage.removeItem(`kncc_upload_${projectId}_docType`);
+    localStorage.removeItem(`kncc_upload_${projectId}_uploadedFile`);
+    localStorage.removeItem(`kncc_upload_${projectId}_preview`);
+    localStorage.removeItem(`kncc_upload_${projectId}_lastResult`);
+  }, []);
+
+  // Rehydrate states when component mounts or activeProject changes
+  useEffect(() => {
+    if (!activeProject?.id) {
+      setRehydratedProjId(null);
+      return;
+    }
+    const projectId = activeProject.id;
+    try {
+      const savedStep = localStorage.getItem(`kncc_upload_${projectId}_step`);
+      const savedDocType = localStorage.getItem(`kncc_upload_${projectId}_docType`);
+      const savedUploadedFile = localStorage.getItem(`kncc_upload_${projectId}_uploadedFile`);
+      const savedPreview = localStorage.getItem(`kncc_upload_${projectId}_preview`);
+      const savedLastResult = localStorage.getItem(`kncc_upload_${projectId}_lastResult`);
+
+      skipSaveRef.current = true;
+
+      setStep(safeParse(savedStep, 0));
+      setDocType(safeParse(savedDocType, 'PO'));
+      setUploadedFile(safeParse(savedUploadedFile, null));
+      setPreview(safeParse(savedPreview, null));
+      setLastResult(safeParse(savedLastResult, null));
+    } catch (e) {
+      console.error('Error rehydrating upload states:', e);
+    }
+    setRehydratedProjId(projectId);
+  }, [activeProject?.id]);
+
+  // Persist states to localStorage when they change
+  useEffect(() => {
+    if (!activeProject?.id || rehydratedProjId !== activeProject.id) {
+      return;
+    }
+    if (skipSaveRef.current) {
+      skipSaveRef.current = false;
+      return;
+    }
+    const projectId = activeProject.id;
+    try {
+      localStorage.setItem(`kncc_upload_${projectId}_step`, JSON.stringify(step));
+      localStorage.setItem(`kncc_upload_${projectId}_docType`, JSON.stringify(docType));
+      localStorage.setItem(`kncc_upload_${projectId}_uploadedFile`, JSON.stringify(uploadedFile));
+      localStorage.setItem(`kncc_upload_${projectId}_preview`, JSON.stringify(preview));
+      localStorage.setItem(`kncc_upload_${projectId}_lastResult`, JSON.stringify(lastResult));
+    } catch (e) {
+      console.error('Error caching upload states:', e);
+    }
+  }, [step, docType, uploadedFile, preview, lastResult, activeProject?.id, rehydratedProjId]);
+
   const getToken = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     return session?.access_token || '';
   };
 
-  const getBackendUrl = () => 'https://kncc-backend.onrender.com';
+  const getBackendUrl = () => import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
   const handleFile = useCallback(async (file) => {
     if (!file) return;
@@ -178,6 +248,10 @@ export default function UploadCenter() {
         });
       }
 
+      if (activeProject?.id) {
+        clearCachedStates(activeProject.id);
+      }
+      skipSaveRef.current = true;
       setLastResult(result);
       setPreview(null);
       setStep(2);
@@ -189,6 +263,10 @@ export default function UploadCenter() {
   };
 
   const handleDiscard = () => {
+    if (activeProject?.id) {
+      clearCachedStates(activeProject.id);
+    }
+    skipSaveRef.current = true;
     setPreview(null);
     setUploadedFile(null);
     setStep(0);
@@ -197,6 +275,10 @@ export default function UploadCenter() {
   };
 
   const handleReset = () => {
+    if (activeProject?.id) {
+      clearCachedStates(activeProject.id);
+    }
+    skipSaveRef.current = true;
     setStep(0);
     setPreview(null);
     setUploadedFile(null);
@@ -349,11 +431,6 @@ export default function UploadCenter() {
           </div>
           <style>{`@keyframes progressIndeterminate { 0% { transform: scaleX(0); transform-origin: 0% 50%; } 50% { transform: scaleX(1); transform-origin: 0% 50%; } 50.1% { transform: scaleX(1); transform-origin: 100% 50%; } 100% { transform: scaleX(0); transform-origin: 100% 50%; } }`}</style>
 
-          {isDemoMode && (
-            <div className="uc-demo-note" style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center', marginTop: '1rem', color: '#71717a', fontSize: '0.8rem' }}>
-              <Info size={14} /> Demo mode active
-            </div>
-          )}
         </div>
       )}
 
@@ -375,9 +452,9 @@ export default function UploadCenter() {
             <button className="uc-success-btn" onClick={handleReset}>
               Upload Another Document
             </button>
-            <a href="/grid" className="uc-success-link">
+            <Link to="/grid" className="uc-success-link">
               View Material Grid <ChevronRight size={14} />
-            </a>
+            </Link>
           </div>
         </div>
       )}

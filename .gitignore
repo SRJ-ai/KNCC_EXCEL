@@ -30,3 +30,6 @@ htmlcov/
 Thumbs.db
 
 .vercel
+platform/backend/uploads/
+platform/backend/*.log
+platform/backend/*.txt

@@ -413,6 +413,8 @@ function COPreviewPage({ preview }) {
    MAIN EXPORT — Full-page preview
 ══════════════════════════════════════════════════════ */
 export default function UploadPreviewPage({ preview, onConfirm, onDiscard, confirming }) {
+  const [showCoModal, setShowCoModal] = useState(false);
+
   if (!preview) return null;
 
   const { filename, doc_type, doc_number, doc_date, total_amount, tax,
@@ -420,6 +422,14 @@ export default function UploadPreviewPage({ preview, onConfirm, onDiscard, confi
 
   const dtMeta = DOC_TYPE_META[doc_type] || DOC_TYPE_META.PO;
   const totalValue = preview_items.reduce((s, i) => s + (i.line_item?.amount || 0), 0);
+
+  const handleApplyClick = () => {
+    if (doc_type === 'CO') {
+      setShowCoModal(true);
+    } else {
+      onConfirm();
+    }
+  };
 
   return (
     <div className="upp-wrap animate-fade-in">
@@ -444,7 +454,7 @@ export default function UploadPreviewPage({ preview, onConfirm, onDiscard, confi
           </button>
           <button
             className="upp-confirm-btn"
-            onClick={onConfirm}
+            onClick={handleApplyClick}
             disabled={confirming || !!duplicate_warning}
             title={duplicate_warning || undefined}
           >
@@ -488,7 +498,7 @@ export default function UploadPreviewPage({ preview, onConfirm, onDiscard, confi
           </button>
           <button
             className="upp-confirm-btn lg"
-            onClick={onConfirm}
+            onClick={handleApplyClick}
             disabled={confirming || !!duplicate_warning}
           >
             {confirming
@@ -497,6 +507,244 @@ export default function UploadPreviewPage({ preview, onConfirm, onDiscard, confi
           </button>
         </div>
       </div>
+
+      {/* ── Change Order Confirmation Modal (Interactive Row Changes) ── */}
+      {showCoModal && (
+        <div className="co-confirm-overlay" style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0, 0, 0, 0.85)',
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)',
+          zIndex: 9999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '1.5rem',
+          animation: 'fadeIn 0.25s ease'
+        }}>
+          <div className="co-confirm-modal glass-card" style={{
+            background: 'rgba(15, 15, 15, 0.85)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            borderRadius: '16px',
+            width: '100%',
+            maxWidth: '650px',
+            maxHeight: '85vh',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            boxShadow: '0 25px 80px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+          }}>
+            {/* Modal Header */}
+            <div style={{
+              padding: '1.5rem',
+              borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+              background: 'rgba(10, 10, 10, 0.4)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '8px',
+                  background: 'rgba(245, 158, 11, 0.12)',
+                  border: '1px solid rgba(245, 158, 11, 0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <Zap size={18} color="#F59E0B" />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#f4f4f5' }}>
+                    Confirm Change Order Adjustments
+                  </h3>
+                  <p style={{ margin: '2px 0 0', fontSize: '0.75rem', color: '#71717a' }}>
+                    Verify row quantity deltas before writing to Master Excel
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowCoModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#71717a',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all 0.15s'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = '#e4e4e7'; e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = '#71717a'; e.currentTarget.style.background = 'none'; }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{
+              flex: 1,
+              overflowY: 'auto',
+              padding: '1.5rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.75rem'
+            }}>
+              <p style={{ fontSize: '0.85rem', color: '#a1a1aa', margin: '0 0 0.5rem 0', lineHeight: 1.4 }}>
+                You are applying a Change Order that will modify the following rows in the Master Excel document:
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+                {preview_items.map((item, idx) => {
+                  const li = item.line_item || {};
+                  const delta = li.quantity || 0;
+                  const isIncrease = delta > 0;
+                  const isDecrease = delta < 0;
+                  const deltaColor = isIncrease ? '#10B981' : isDecrease ? '#EF4444' : '#F59E0B';
+                  const deltaBg = isIncrease ? 'rgba(16, 185, 129, 0.1)' : isDecrease ? 'rgba(239, 68, 68, 0.1)' : 'rgba(245, 158, 11, 0.1)';
+
+                  return (
+                    <div
+                      key={idx}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '0.75rem 1rem',
+                        background: 'rgba(255, 255, 255, 0.02)',
+                        border: '1px solid rgba(255, 255, 255, 0.05)',
+                        borderRadius: '10px',
+                        gap: '1rem'
+                      }}
+                    >
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0, flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {item.excel_row_ref ? (
+                            <span style={{
+                              fontFamily: 'JetBrains Mono, monospace',
+                              fontSize: '0.72rem',
+                              fontWeight: 600,
+                              color: '#34d399',
+                              background: 'rgba(16, 185, 129, 0.08)',
+                              border: '1px solid rgba(16, 185, 129, 0.15)',
+                              borderRadius: '4px',
+                              padding: '1px 6px'
+                            }}>
+                              {item.excel_row_ref}
+                            </span>
+                          ) : (
+                            <span style={{ color: '#52525b', fontSize: '0.72rem' }}>—</span>
+                          )}
+                          <span style={{
+                            fontSize: '0.82rem',
+                            fontWeight: 600,
+                            color: '#e4e4e7',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            {li.description || li.item_code || 'Material Adjustment'}
+                          </span>
+                        </div>
+                        {item.matched_material_type && (
+                          <span style={{ fontSize: '0.72rem', color: '#71717a' }}>
+                            Material Type: {item.matched_material_type}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '4px 10px',
+                        borderRadius: '6px',
+                        background: deltaBg,
+                        color: deltaColor,
+                        fontWeight: 700,
+                        fontSize: '0.85rem',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {isIncrease ? <TrendingUp size={14} /> : isDecrease ? <TrendingDown size={14} /> : <Minus size={14} />}
+                        <span>{isIncrease ? '+' : ''}{delta} {li.uom || ''}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div style={{
+              padding: '1rem 1.5rem',
+              borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+              background: 'rgba(10, 10, 10, 0.4)',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '0.75rem'
+            }}>
+              <button
+                onClick={() => setShowCoModal(false)}
+                disabled={confirming}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '0.55rem 1.25rem',
+                  background: 'transparent',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  borderRadius: '8px',
+                  color: '#a1a1aa',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = '#e4e4e7'; e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.3)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = '#a1a1aa'; e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.15)'; }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowCoModal(false);
+                  onConfirm();
+                }}
+                disabled={confirming}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '0.55rem 1.5rem',
+                  background: '#F59E0B',
+                  border: 'none',
+                  borderRadius: '8px',
+                  color: '#000',
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                  boxShadow: '0 0 16px rgba(245, 158, 11, 0.25)'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = '#d97706'; e.currentTarget.style.boxShadow = '0 0 24px rgba(245, 158, 11, 0.4)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = '#F59E0B'; e.currentTarget.style.boxShadow = '0 0 16px rgba(245, 158, 11, 0.25)'; }}
+              >
+                {confirming ? (
+                  <><span className="upp-spinner" style={{ borderTopColor: '#000' }} /> Confirming...</>
+                ) : (
+                  <><CheckCircle2 size={15} /> Confirm Adjustments</>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { usePlatform } from '../context/PlatformContext';
+import { Link } from 'react-router-dom';
 import {
   Package, TrendingUp, AlertCircle, FileCheck,
   Download, Plus, ArrowUpRight, ArrowDownRight,
@@ -23,7 +24,7 @@ export default function Dashboard() {
   const { user } = useAuth();
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const { pos, invoices, cos, documents, materials, activeProject, isDemoMode } = usePlatform();
+  const { pos, invoices, cos, documents, materials, activeProject } = usePlatform();
 
   // ── Computed Metrics ──────────────────────────────────────────────────
   const totalPOValue   = pos.reduce((s, p) => s + Number(p.amount || 0), 0);
@@ -101,7 +102,7 @@ export default function Dashboard() {
             <div>
               <h1 className="db-title">Welcome back, <span className="db-name">{user?.name || user?.email?.split('@')[0] || 'Engineer'}</span></h1>
               <p className="db-sub">
-                <span className="db-project-badge"><Layers size={13} /> {activeProject?.name || 'No Project'} {isDemoMode && <span className="db-demo-tag">Demo</span>}</span>
+                <span className="db-project-badge"><Layers size={13} /> {activeProject?.name || 'No Project'}</span>
               </p>
             </div>
           </div>
@@ -274,14 +275,14 @@ export default function Dashboard() {
               { label: 'Export Excel', sub: 'Full project workbook', href: '/export', color: '#10B981', icon: <Download size={18}/> },
               { label: 'View POs & Invoices', sub: `${pos.length} POs · ${invoices.length} invoices`, href: '/vpos', color: '#8B5CF6', icon: <Package size={18}/> },
             ].map((link, i) => (
-              <a key={i} href={link.href} className="db-quick-link" style={{ '--accent': link.color }}>
+              <Link key={i} to={link.href} className="db-quick-link" style={{ '--accent': link.color }}>
                 <div className="db-quick-icon" style={{ background: link.color + '22', color: link.color }}>{link.icon}</div>
                 <div className="db-quick-body">
                   <span className="db-quick-label">{link.label}</span>
                   <span className="db-quick-sub">{link.sub}</span>
                 </div>
                 <ChevronRight size={16} className="db-quick-chevron" />
-              </a>
+              </Link>
             ))}
           </div>
         </motion.div>

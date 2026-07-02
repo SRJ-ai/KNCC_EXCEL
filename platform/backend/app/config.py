@@ -43,7 +43,7 @@ LEGACY_EXCEL = os.environ.get("LEGACY_EXCEL", _default_excel)
 # ── Auth Configuration ────────────────────────────────────────────────────────
 SECRET_KEY = os.environ.get("SECRET_KEY", "super_secret_jwt_key_for_development_change_in_prod")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 1 week
+ACCESS_TOKEN_EXPIRE_MINUTES = 60  # 60 minutes
 
 # ── Supabase (optional — used by seed endpoint) ───────────────────────────────
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")

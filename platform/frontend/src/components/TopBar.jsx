@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { Bell, Search, Settings, LogOut, User } from 'lucide-react';
 
 const TopBar = () => {
-  const { projects, activeProject, isDemoMode, switchProject } = usePlatform();
+  const { projects, activeProject, switchProject } = usePlatform();
   const { user, logout } = useAuth();
 
   return (
@@ -54,13 +54,6 @@ const TopBar = () => {
             <span style={{ color: '#e4e4e7', fontWeight: 600, fontSize: '13px' }}>
               {activeProject?.name || 'No Project'}
             </span>
-          )}
-          {isDemoMode && (
-            <span style={{
-              background: 'rgba(245,158,11,0.1)', color: '#F59E0B',
-              borderRadius: '6px', padding: '1px 6px',
-              fontSize: '10px', fontWeight: 700, letterSpacing: '0.05em'
-            }}>DEMO</span>
           )}
         </div>
         {activeProject?.status && (

@@ -3,7 +3,7 @@ import requests
 import time
 import re
 
-BASE_URL = "http://localhost:8000/api"
+BASE_URL = "http://127.0.0.1:8000/api"
 
 # Paths
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -55,14 +55,18 @@ def test_full_flow():
         pdfs = get_pdfs_from_dir(directory)
         for pdf_path in pdfs:
             if "po.pdf" in pdf_path.lower() or "purchase order" in pdf_path.lower():
-                with open(pdf_path, "rb") as f:
-                    print(f"Uploading {os.path.basename(pdf_path)}...")
-                    # We just use the confirm endpoint directly for testing
-                    requests.post(f"{BASE_URL}/upload/confirm", data={
-                        "filename": os.path.basename(pdf_path),
-                        "doc_type": "PO",
-                        "project_id": project_id
-                    }, headers=headers)
+                filename = os.path.basename(pdf_path)
+                print(f"Uploading {filename}...")
+                # We just use the confirm endpoint directly for testing
+                res = requests.post(f"{BASE_URL}/upload/confirm", data={
+                    "filename": filename,
+                    "doc_type": "PO",
+                    "project_id": project_id
+                }, headers=headers)
+                res.raise_for_status()
+                data = res.json()
+                print(f"Response for {filename}: {data}")
+                assert data.get("line_items_parsed", 0) > 0, f"No line items parsed for {filename}"
                     
     # 3. Upload Invoices & COs
     print("Uploading Invoices and COs...")
@@ -78,11 +82,15 @@ def test_full_flow():
                 
             if doc_type != "UNKNOWN":
                 print(f"Uploading {filename} as {doc_type}...")
-                requests.post(f"{BASE_URL}/upload/confirm", data={
+                res = requests.post(f"{BASE_URL}/upload/confirm", data={
                     "filename": filename,
                     "doc_type": doc_type,
                     "project_id": project_id
                 }, headers=headers)
+                res.raise_for_status()
+                data = res.json()
+                print(f"Response for {filename}: {data}")
+                assert data.get("line_items_parsed", 0) > 0, f"No line items parsed for {filename}"
                 
     # 4. Generate Export
     print("Exporting Excel...")
