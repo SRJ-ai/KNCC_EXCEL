@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import './ProjectDashboard.css';
 
 export default function ProjectDashboard() {
-  const { user } = useAuth();
+  const { user, organization } = useAuth();
   const { projects, switchProject, createProject } = usePlatform();
   const [showCreate, setShowCreate] = useState(false);
   const [formData, setFormData] = useState({ name: '', job_number: '', tax_rate: '1.06', client: 'KNCC Development Corp' });
@@ -22,7 +22,8 @@ export default function ProjectDashboard() {
         name: formData.name,
         job_number: formData.job_number,
         tax_rate: parseFloat(formData.tax_rate),
-        status: 'In Progress'
+        status: 'In Progress',
+        organization_name: organization?.name || 'KNCC'
       });
       setShowCreate(false);
     } catch (err) {

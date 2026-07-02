@@ -17,6 +17,14 @@ os.makedirs(EXPORT_DIR, exist_ok=True)
 
 app = FastAPI(title="KNCC Platform API", version="1.0.0")
 
+@app.get("/api/reset-db")
+def reset_db():
+    from .database import Base, engine
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
+    return {"status": "reset complete"}
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[

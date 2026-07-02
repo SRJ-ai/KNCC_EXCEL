@@ -12,7 +12,11 @@ PROJECT_ROOT = os.path.dirname(PLATFORM_DIR)
 # Render / production sets DATABASE_URL to a Postgres connection string.
 # Vercel serverless uses /tmp ephemeral SQLite.
 # Local dev falls back to file-based SQLite.
-if os.environ.get("DATABASE_URL"):
+if os.environ.get("POSTGRES_URL"):
+    DATABASE_URL = os.environ["POSTGRES_URL"]
+    if DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+elif os.environ.get("DATABASE_URL"):
     DATABASE_URL = os.environ["DATABASE_URL"]
     # psycopg2 requires postgresql:// not postgres://
     if DATABASE_URL.startswith("postgres://"):

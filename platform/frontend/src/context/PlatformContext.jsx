@@ -105,13 +105,30 @@ export function PlatformProvider({ children }) {
 
   const createProject = async (projectData) => {
     try {
-      const { data, error } = await supabase.from('projects').insert([projectData]).select().single();
-      if (error) throw error;
-      if (data) {
-        setProjects([data, ...projects]);
-        switchProject(data.id);
-        return data;
+      // Get the current session to get the token
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      
+      const getBackendUrl = () => import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      
+      const res = await fetch(`${getBackendUrl()}/api/projects/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify(projectData)
+      });
+      
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || `Failed to create project: ${res.statusText}`);
       }
+      
+      const data = await res.json();
+      setProjects([data, ...projects]);
+      switchProject(data.id);
+      return data;
     } catch (err) {
       console.error("Project creation failed:", err.message);
       throw err;
