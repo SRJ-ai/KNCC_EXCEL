@@ -20,11 +20,9 @@ export default function ProjectDashboard() {
     try {
       await createProject({
         name: formData.name,
-        location: formData.job_number,
+        job_number: formData.job_number,
         tax_rate: parseFloat(formData.tax_rate),
-        client: formData.client,
-        status: 'In Progress',
-        budget: 0
+        status: 'In Progress'
       });
       setShowCreate(false);
     } catch (err) {
