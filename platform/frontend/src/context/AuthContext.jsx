@@ -21,13 +21,20 @@ export function AuthProvider({ children }) {
     // Check active sessions and sets the user
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
-        setUser({
-          id: session.user.id,
-          email: session.user.email,
-          name: session.user.user_metadata?.name || 'Engineer',
-          role: session.user.user_metadata?.role || 'member'
+        setUser(prev => {
+          if (prev && prev.id === session.user.id) return prev;
+          return {
+            id: session.user.id,
+            email: session.user.email,
+            name: session.user.user_metadata?.name || 'Engineer',
+            role: session.user.user_metadata?.role || 'member'
+          };
         });
-        setOrganization({ name: session.user.user_metadata?.organization_name || 'KNCC Organization' });
+        setOrganization(prev => {
+          const newOrgName = session.user.user_metadata?.organization_name || 'KNCC Organization';
+          if (prev && prev.name === newOrgName) return prev;
+          return { name: newOrgName };
+        });
       } else {
         setUser(null);
         setOrganization(null);
@@ -38,13 +45,20 @@ export function AuthProvider({ children }) {
     // Listen for changes on auth state (in, out, etc.)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
-        setUser({
-          id: session.user.id,
-          email: session.user.email,
-          name: session.user.user_metadata?.name || 'Engineer',
-          role: session.user.user_metadata?.role || 'member'
+        setUser(prev => {
+          if (prev && prev.id === session.user.id) return prev;
+          return {
+            id: session.user.id,
+            email: session.user.email,
+            name: session.user.user_metadata?.name || 'Engineer',
+            role: session.user.user_metadata?.role || 'member'
+          };
         });
-        setOrganization({ name: session.user.user_metadata?.organization_name || 'KNCC Organization' });
+        setOrganization(prev => {
+          const newOrgName = session.user.user_metadata?.organization_name || 'KNCC Organization';
+          if (prev && prev.name === newOrgName) return prev;
+          return { name: newOrgName };
+        });
       } else {
         setUser(null);
         setOrganization(null);
