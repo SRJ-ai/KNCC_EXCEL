@@ -30,7 +30,7 @@ function ProtectedLayout() {
   
   if (authLoading || platformLoading) {
     return (
-      <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', background: '#000', color: '#555', flexDirection: 'column', gap: '1rem' }}>
+      <div style={{ display: 'flex', width: '100%', height: '100vh', alignItems: 'center', justifyContent: 'center', background: '#000', color: '#555', flexDirection: 'column', gap: '1rem' }}>
         <div style={{ width: 36, height: 36, border: '2px solid #111', borderTop: '2px solid #3B82F6', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
         <span style={{ fontSize: '13px', letterSpacing: '0.05em' }}>Loading workspace...</span>
       </div>
