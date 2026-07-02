@@ -11,14 +11,16 @@ export default function ProjectDashboard() {
   const [showCreate, setShowCreate] = useState(false);
   const [formData, setFormData] = useState({ name: '', job_number: '', tax_rate: '1.06', client: 'KNCC Development Corp' });
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState(null);
 
   const handleCreate = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setErrorMsg(null);
     try {
       await createProject({
         name: formData.name,
-        job_number: formData.job_number,
+        location: formData.job_number,
         tax_rate: parseFloat(formData.tax_rate),
         client: formData.client,
         status: 'In Progress',
@@ -27,6 +29,7 @@ export default function ProjectDashboard() {
       setShowCreate(false);
     } catch (err) {
       console.error(err);
+      setErrorMsg(err.message || 'Failed to create workspace');
     } finally {
       setLoading(false);
     }
@@ -75,7 +78,7 @@ export default function ProjectDashboard() {
             
             <div className="dash-card-stats">
               <div className="stat">
-                <span className="stat-val">{proj.job_number || 'N/A'}</span>
+                <span className="stat-val">{proj.location || proj.job_number || 'N/A'}</span>
                 <span className="stat-label">Job Number</span>
               </div>
               <div className="stat">
@@ -106,6 +109,7 @@ export default function ProjectDashboard() {
               <p>Initialize a new workspace with a blank Master Excel grid.</p>
               
               <form onSubmit={handleCreate}>
+                {errorMsg && <div style={{color: '#ef4444', marginBottom: '1rem', fontSize: '14px', background: 'rgba(239, 68, 68, 0.1)', padding: '8px', borderRadius: '4px'}}>{errorMsg}</div>}
                 <div className="form-group">
                   <label>Project Name</label>
                   <input 
