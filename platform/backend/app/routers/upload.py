@@ -85,6 +85,7 @@ def _match_line_to_material(item, materials, excel_rows: list) -> dict:
     best_score = 0
     best_excel = None
 
+    # 1. First try matching against existing DB materials
     for i, mat in enumerate(materials):
         score = 0
         mat_desc = (mat.material_type or "").upper()
@@ -109,12 +110,44 @@ def _match_line_to_material(item, materials, excel_rows: list) -> dict:
         if score > best_score:
             best_score = score
             best = mat
-            if i < len(excel_rows):
-                best_excel = excel_rows[i]
+
+    # 2. Match against excel rows directly, independent of DB materials
+    excel_score = 0
+    
+    i_desc = item.description.upper() if item.description else ""
+    if item.dimensions:
+        dm = re.match(r'(\d+)[Xx](\d+)[Xx](\d+)', item.dimensions.strip())
+        if dm:
+            i_desc = f"{dm.group(1)} X {dm.group(2)} {dm.group(3)} {i_desc}".strip()
+        else:
+            # Handle panels like 4x8
+            i_desc = f"{item.dimensions.upper().replace('X', ' X ')} {i_desc}".strip()
+
+    for er in excel_rows:
+        e_score = 0
+        e_desc = (er.get("description") or "").upper()
+        
+        if i_desc and i_desc in e_desc:
+            e_score += 15
+        elif i_desc:
+            words = e_desc.split()
+            matched_words = 0
+            for w in i_desc.split():
+                if len(w) > 0 and w in words:
+                    matched_words += 1
+            e_score += matched_words * 2
+
+        # Bonus for exact match
+        if i_desc == e_desc:
+            e_score += 10
+
+        if e_score > excel_score:
+            excel_score = e_score
+            best_excel = er
 
     return {
         "matched": best is not None and best_score >= 4,
-        "score": best_score,
+        "score": max(best_score, excel_score),
         "material_id": best.id if best else None,
         "material_type": best.material_type if best else None,
         "material_dimensions": f"{best.thickness or ''}x{best.width or ''}x{best.length or ''}" if best else None,
