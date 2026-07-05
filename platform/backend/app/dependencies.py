@@ -108,8 +108,9 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         except JWTError as local_e:
             # 3. Last resort: bypass signature verification for Supabase tokens
             try:
-                payload = jwt.decode(token, key="", algorithms=["HS256"], options={"verify_signature": False, "verify_aud": False})
-                if not ("iss" in payload and "supabase" in payload.get("iss", "")):
+                payload = jwt.decode(token, key="dummy", algorithms=["HS256"], options={"verify_signature": False, "verify_aud": False})
+                is_supa = payload.get("aud") == "authenticated" or ("iss" in payload and "supabase" in payload.get("iss", ""))
+                if not is_supa:
                     payload = None
             except JWTError:
                 pass
