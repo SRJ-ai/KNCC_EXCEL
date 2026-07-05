@@ -57,6 +57,13 @@ export function PlatformProvider({ children }) {
 
         if (projData && projData.length > 0) {
           setProjects(projData);
+          
+          // Verify if activeProject still exists in the user's real projects
+          setActiveProject((currentActive) => {
+            if (!currentActive) return projData[0];
+            const exists = projData.some(p => p.id === currentActive.id);
+            return exists ? currentActive : projData[0];
+          });
         } else {
           setProjects([]);
           setActiveProject(null);
