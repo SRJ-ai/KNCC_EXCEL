@@ -210,7 +210,7 @@ async def upload_files(
 
 @router.post("/preview")
 async def preview_upload(
-    filename: str = Form(...),
+    file: UploadFile = File(...),
     doc_type: str = Form(...),
     project_id: str = Form(...),
     current_user: User = Depends(get_current_user),
@@ -221,25 +221,10 @@ async def preview_upload(
     Returns a rich diff mapped to Client_Requirments_Doc.xlsx rows.
     The user must review this before calling /confirm.
     """
-    safe_name = os.path.basename(filename)
+    safe_name = os.path.basename(file.filename)
     filepath = os.path.join(UPLOAD_DIR, safe_name)
-
-    if not os.path.exists(filepath):
-        from ..config import PROJECT_ROOT
-        client_dir = os.path.join(PROJECT_ROOT, "Client")
-        found = False
-        if os.path.exists(client_dir):
-            for r, _, files in os.walk(client_dir):
-                if safe_name in files:
-                    os.makedirs(UPLOAD_DIR, exist_ok=True)
-                    shutil.copy2(os.path.join(r, safe_name), filepath)
-                    found = True
-                    break
-        if not found:
-            raise HTTPException(
-                status_code=404,
-                detail=f"File '{safe_name}' not found. Upload it first via POST /api/upload/",
-            )
+    with open(filepath, "wb") as f:
+        shutil.copyfileobj(file.file, f)
 
     if project_id.startswith("demo-"):
         project = Project(id=0, name="Demo Project", organization_id=current_user.organization_id)
@@ -358,7 +343,7 @@ async def preview_upload(
 
 @router.post("/confirm")
 async def confirm_upload(
-    filename: str = Form(...),
+    file: UploadFile = File(...),
     doc_type: str = Form(...),
     project_id: str = Form(...),
     current_user: User = Depends(get_current_user),
@@ -367,25 +352,10 @@ async def confirm_upload(
     """
     Step 2: Confirm a previously uploaded file for processing.
     """
-    safe_name = os.path.basename(filename)
+    safe_name = os.path.basename(file.filename)
     filepath = os.path.join(UPLOAD_DIR, safe_name)
-
-    if not os.path.exists(filepath):
-        from ..config import PROJECT_ROOT
-        client_dir = os.path.join(PROJECT_ROOT, "Client")
-        found = False
-        if os.path.exists(client_dir):
-            for r, _, files in os.walk(client_dir):
-                if safe_name in files:
-                    os.makedirs(UPLOAD_DIR, exist_ok=True)
-                    shutil.copy2(os.path.join(r, safe_name), filepath)
-                    found = True
-                    break
-        if not found:
-            raise HTTPException(
-                status_code=404,
-                detail=f"File '{safe_name}' not found in upload queue. Upload it first via POST /api/upload/",
-            )
+    with open(filepath, "wb") as f:
+        shutil.copyfileobj(file.file, f)
 
     if project_id.startswith("demo-"):
         # Demo account bypass: just return success without DB writes

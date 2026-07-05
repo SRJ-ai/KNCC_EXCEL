@@ -152,35 +152,14 @@ export default function UploadCenter() {
 
       // ── Also upload to backend for PDF parsing ───────────────────
       const token = await getToken();
-      const fd = new FormData();
-      fd.append('files', file, file.name);
-      const uploadRes = await fetch(`${getBackendUrl()}/api/upload/`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: fd,
-      });
-
-      setUploadedFile({ name: file.name, storagePath: storageData?.path });
+      
+      setUploadedFile({ name: file.name, storagePath: storageData?.path, fileObj: file });
       setUploading(false);
-
-      if (!uploadRes.ok) {
-        // Backend offline — record doc and skip to done
-        await addDocument({
-          file_name: file.name,
-          file_path: storageData.path,
-          size: `${(file.size / 1024 / 1024).toFixed(1)} MB`,
-          type: 'pdf',
-          uploader: user?.email || 'Unknown',
-        });
-        setLastResult({ message: 'Document uploaded (preview unavailable — backend offline)', line_items_parsed: 0 });
-        setStep(2);
-        return;
-      }
 
       // ── Fetch full preview ───────────────────────────────────────
       setPreviewing(true);
       const previewFd = new FormData();
-      previewFd.append('filename', file.name);
+      previewFd.append('file', file);
       previewFd.append('doc_type', docType);
       previewFd.append('project_id', activeProject.id);
 
@@ -217,11 +196,16 @@ export default function UploadCenter() {
 
   const handleConfirm = async () => {
     if (!preview || !uploadedFile || !activeProject) return;
+    if (!uploadedFile.fileObj) {
+      setError('File data lost. Please click Start Over and re-upload the document.');
+      return;
+    }
+    
     setConfirming(true);
     try {
       const token = await getToken();
       const fd = new FormData();
-      fd.append('filename', uploadedFile.name);
+      fd.append('file', uploadedFile.fileObj);
       fd.append('doc_type', docType);
       fd.append('project_id', activeProject.id);
 
