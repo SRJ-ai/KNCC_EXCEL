@@ -85,8 +85,8 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         uid = int(user_id)
         user = db.query(User).filter(User.id == uid).first()
         
-        # Auto-provision local admin user if missing (for legacy tokens)
-        if user is None and uid == 1:
+        # Auto-provision local user if missing (for legacy tokens)
+        if user is None:
             org = db.query(Organization).filter(Organization.name == "KNCC").first()
             if not org:
                 org = Organization(name="KNCC")
@@ -94,10 +94,20 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
                 db.commit()
                 db.refresh(org)
             
+            if uid == 1:
+                email = "admin@kncc.com"
+                name = "Admin User"
+            elif uid == 2:
+                email = "demo@kncc.com"
+                name = "Demo Engineer"
+            else:
+                email = f"user_{uid}@kncc.com"
+                name = f"Legacy User {uid}"
+            
             user = User(
-                id=1,
-                email="admin@kncc.com",
-                name="Admin User",
+                id=uid,
+                email=email,
+                name=name,
                 role="admin",
                 organization_id=org.id,
                 hashed_password="auto-provisioned-local"
