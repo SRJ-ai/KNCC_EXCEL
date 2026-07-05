@@ -30,14 +30,25 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         except JWTError as e:
             supabase_err = f"JWT decode failed: {str(e)}"
             
-    # 2. Fallback to Local JWT
+    # 2. Bypass signature verification if secret is wrong or missing (requested by user)
     if not payload:
         try:
+            # Fallback to Local JWT first
             payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        except JWTError as e:
-            local_err = str(e)
-            credentials_exception.detail = f"Could not validate credentials. Supabase Error: {supabase_err} | Local Error: {local_err}"
-            raise credentials_exception
+        except JWTError as local_e:
+            try:
+                # DANGEROUS: Bypasses signature verification completely
+                # Allows any Supabase token to work even without the JWT secret
+                payload = jwt.decode(token, options={"verify_signature": False, "verify_aud": False})
+                if not ("iss" in payload and "supabase" in payload.get("iss", "")):
+                    payload = None
+            except JWTError:
+                pass
+                
+            if not payload:
+                local_err = str(local_e)
+                credentials_exception.detail = f"Could not validate credentials. Supabase Error: {supabase_err} | Local Error: {local_err}"
+                raise credentials_exception
 
     # Handle Supabase Payload
     if payload.get("aud") == "authenticated" or "iss" in payload and "supabase" in payload["iss"]:
