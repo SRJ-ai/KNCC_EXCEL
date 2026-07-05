@@ -84,6 +84,28 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     try:
         uid = int(user_id)
         user = db.query(User).filter(User.id == uid).first()
+        
+        # Auto-provision local admin user if missing (for legacy tokens)
+        if user is None and uid == 1:
+            org = db.query(Organization).filter(Organization.name == "KNCC").first()
+            if not org:
+                org = Organization(name="KNCC")
+                db.add(org)
+                db.commit()
+                db.refresh(org)
+            
+            user = User(
+                id=1,
+                email="admin@kncc.com",
+                name="Admin User",
+                role="admin",
+                organization_id=org.id,
+                hashed_password="auto-provisioned-local"
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+            
     except ValueError:
         raise credentials_exception
 
