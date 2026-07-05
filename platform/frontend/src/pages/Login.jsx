@@ -84,23 +84,7 @@ export default function Login() {
     }
   }, [email, password, isForgotPassword, login, resetPassword, navigate]);
 
-  const handleTestLogin = useCallback(async (type) => {
-    setIsTestLoading(true);
-    setError('');
-    try {
-      if (type === 'admin') {
-        await setupTestAccount('admin@kncc.com', 'Password123!', 'admin', 'Admin User');
-      } else {
-        await setupTestAccount('engineer@kncc.com', 'Password123!', 'member', 'Site Engineer');
-      }
-      navigate('/dashboard');
-    } catch {
-      // Rule 4: Generic
-      setError('Sign-in failed. Please try again.');
-    } finally {
-      setIsTestLoading(false);
-    }
-  }, [setupTestAccount, navigate]);
+
 
   return (
     <div className="auth-container">
@@ -189,33 +173,6 @@ export default function Login() {
           </div>
         )}
 
-        {!isForgotPassword && (
-          <>
-            <div style={{ margin: '1.5rem 0', display: 'flex', alignItems: 'center', color: '#52525b', fontSize: '0.875rem' }}>
-              <div style={{ flex: 1, height: '1px', background: '#3f3f46' }} />
-              <span style={{ padding: '0 1rem' }}>or use a test account</span>
-              <div style={{ flex: 1, height: '1px', background: '#3f3f46' }} />
-            </div>
-
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button
-                id="login-admin-btn"
-                onClick={() => handleTestLogin('admin')}
-                disabled={isTestLoading}
-                style={{ flex: 1, padding: '0.5rem', background: '#27272a', border: '1px solid #3f3f46', color: '#fff', borderRadius: '6px', cursor: 'pointer', fontSize: '0.875rem' }}
-              >
-                Login as Admin
-              </button>
-              <button
-                id="login-engineer-btn"
-                onClick={() => handleTestLogin('engineer')}
-                disabled={isTestLoading}
-                style={{ flex: 1, padding: '0.5rem', background: '#27272a', border: '1px solid #3f3f46', color: '#fff', borderRadius: '6px', cursor: 'pointer', fontSize: '0.875rem' }}
-              >
-                Login as Engineer
-              </button>
-            </div>
-          </>
         )}
 
         <div className="auth-footer">

@@ -9,15 +9,6 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check for mock demo user first
-    const demoLocal = localStorage.getItem('kncc_demo_user');
-    if (demoLocal) {
-      setUser(JSON.parse(demoLocal));
-      setOrganization({ name: 'KNCC Demo Organization' });
-      setLoading(false);
-      return;
-    }
-
     // Check active sessions and sets the user
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
@@ -112,31 +103,8 @@ export function AuthProvider({ children }) {
     setOrganization(null);
   };
 
-  const setupTestAccount = async (email, password, role, name) => {
-    try {
-      // Try login first
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) {
-        // If it fails, sign up
-        const { error: signUpError } = await supabase.auth.signUp({
-          email, password,
-          options: {
-            data: { name, organization_name: 'KNCC', role }
-          }
-        });
-        if (signUpError) throw signUpError;
-        // The user might need to confirm email depending on Supabase settings, 
-        // but if auto-confirm is on, we can sign in.
-        await supabase.auth.signInWithPassword({ email, password });
-      }
-    } catch (err) {
-      console.error("Test account setup failed", err);
-      throw err;
-    }
-  };
-
   return (
-    <AuthContext.Provider value={{ user, organization, loading, login, register, logout, resetPassword, setupTestAccount }}>
+    <AuthContext.Provider value={{ user, organization, loading, login, register, logout, resetPassword }}>
       {children}
     </AuthContext.Provider>
   );
