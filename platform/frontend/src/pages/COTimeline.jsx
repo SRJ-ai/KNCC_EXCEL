@@ -13,13 +13,7 @@ export default function COTimeline() {
     desc: ''
   });
 
-  const displayCOs = cos.length > 0 ? cos : [
-    { id: 'CO-005', title: 'Additional Foundation Reinforcement', date: 'Oct 24, 2026', status: 'pending', cost: '+$14,500', desc: 'Requested by structural engineer due to unforeseen soil conditions on the north elevation.' },
-    { id: 'CO-004', title: 'Lighting Fixture Upgrade', date: 'Oct 20, 2026', status: 'approved', cost: '+$8,200', desc: 'Client requested upgrade to premium LED fixtures in main lobby.' },
-    { id: 'CO-003', title: 'Omit Window Blinds', date: 'Oct 15, 2026', status: 'approved', cost: '-$3,400', desc: 'Client will handle window treatments directly post-occupancy.' },
-    { id: 'CO-002', title: 'HVAC Duct Re-routing', date: 'Oct 10, 2026', status: 'rejected', cost: '+$12,000', desc: 'Proposed alternative route due to clash with plumbing. Rejected in favor of plumbing adjustment.' },
-    { id: 'CO-001', title: 'Initial Site Clearing Expansion', date: 'Sep 05, 2026', status: 'approved', cost: '+$5,000', desc: 'Expanded clearing area by 50ft to accommodate laydown yard.' },
-  ];
+  const displayCOs = cos;
 
   const getStatusStyle = (status) => {
     switch (status) {
@@ -111,30 +105,36 @@ export default function COTimeline() {
         initial="hidden"
         animate="visible"
       >
-        {displayCOs.map(co => {
-          const styles = getStatusStyle(co.status);
-          const costColorClass = typeof styles.cost === 'function' ? styles.cost(co.cost) : styles.cost;
-          
-          return (
-            <motion.div key={co.id} className="timeline-item" variants={itemVariants}>
-              <div className={`timeline-dot ${styles.dot}`}></div>
-              <div className="timeline-content">
-                <div className="co-header">
-                  <div>
-                    <h3 className="co-id">{co.id}</h3>
-                    <h4 className="co-title">{co.title}</h4>
+        {displayCOs.length === 0 ? (
+          <div style={{ textAlign: 'center', color: '#a1a1aa', marginTop: '3rem' }}>
+            No change orders yet. Click "Create CO" to add one.
+          </div>
+        ) : (
+          displayCOs.map(co => {
+            const styles = getStatusStyle(co.status);
+            const costColorClass = typeof styles.cost === 'function' ? styles.cost(co.cost) : styles.cost;
+            
+            return (
+              <motion.div key={co.id} className="timeline-item" variants={itemVariants}>
+                <div className={`timeline-dot ${styles.dot}`}></div>
+                <div className="timeline-content">
+                  <div className="co-header">
+                    <div>
+                      <h3 className="co-id">{co.id}</h3>
+                      <h4 className="co-title">{co.title}</h4>
+                    </div>
+                    <span className="co-date">{co.date}</span>
                   </div>
-                  <span className="co-date">{co.date}</span>
+                  <p className="co-body">{co.desc}</p>
+                  <div className="co-footer">
+                    <span className={`co-status ${styles.badge}`}>{co.status}</span>
+                    <span className={`co-cost ${costColorClass}`}>{typeof co.amount !== 'undefined' ? `$${Number(co.amount).toLocaleString()}` : co.cost}</span>
+                  </div>
                 </div>
-                <p className="co-body">{co.desc}</p>
-                <div className="co-footer">
-                  <span className={`co-status ${styles.badge}`}>{co.status}</span>
-                  <span className={`co-cost ${costColorClass}`}>{typeof co.amount !== 'undefined' ? `$${Number(co.amount).toLocaleString()}` : co.cost}</span>
-                </div>
-              </div>
-            </motion.div>
-          );
-        })}
+              </motion.div>
+            );
+          })
+        )}
       </motion.div>
     </div>
   );

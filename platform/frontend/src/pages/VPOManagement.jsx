@@ -11,14 +11,8 @@ export default function VPOManagement() {
   const [poData, setPoData] = useState({ vendor: '', description: '', amount: '' });
   const [invoiceData, setInvoiceData] = useState({ poId: '', amount: '' });
 
-  const displayPOs = pos.length > 0 ? pos : [
-    { id: 'PO-1001', vendor: 'Cemex', description: 'Concrete Type II', amount: 45000, status: 'approved' },
-    { id: 'PO-1002', vendor: 'Nucor', description: 'Rebar Supply', amount: 120000, status: 'pending' }
-  ];
-
-  const displayInvoices = invoices.length > 0 ? invoices : [
-    { id: 'INV-901', poId: 'PO-1001', amount: 15000, status: 'paid', date: 'Oct 20, 2026' }
-  ];
+  const displayPOs = pos;
+  const displayInvoices = invoices;
 
   const handleCreatePO = (e) => {
     e.preventDefault();
@@ -81,14 +75,18 @@ export default function VPOManagement() {
                 </tr>
               </thead>
               <tbody>
-                {displayPOs.map(po => (
-                  <tr key={po.id}>
-                    <td style={{ color: '#3B82F6', fontWeight: 600 }}>{po.id}</td>
-                    <td>{po.vendor}</td>
-                    <td>{formatMoney(po.amount)}</td>
-                    <td><span className={`status-badge status-${po.status === 'approved' ? 'paid' : po.status === 'pending' ? 'pending' : 'draft'}`}>{po.status}</span></td>
-                  </tr>
-                ))}
+                {displayPOs.length === 0 ? (
+                  <tr><td colSpan="4" style={{ textAlign: 'center', color: '#a1a1aa', padding: '2rem' }}>No Purchase Orders found.</td></tr>
+                ) : (
+                  displayPOs.map(po => (
+                    <tr key={po.id}>
+                      <td style={{ color: '#3B82F6', fontWeight: 600 }}>{po.id}</td>
+                      <td>{po.vendor}</td>
+                      <td>{formatMoney(po.amount)}</td>
+                      <td><span className={`status-badge status-${po.status === 'approved' ? 'paid' : po.status === 'pending' ? 'pending' : 'draft'}`}>{po.status}</span></td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -107,14 +105,18 @@ export default function VPOManagement() {
                 </tr>
               </thead>
               <tbody>
-                {displayInvoices.map(inv => (
-                  <tr key={inv.id}>
-                    <td style={{ color: '#10B981', fontWeight: 600 }}>{inv.id}</td>
-                    <td>{inv.poId}</td>
-                    <td>{formatMoney(inv.amount)}</td>
-                    <td><span className={`status-badge status-${inv.status === 'paid' ? 'paid' : 'pending'}`}>{inv.status}</span></td>
-                  </tr>
-                ))}
+                {displayInvoices.length === 0 ? (
+                  <tr><td colSpan="4" style={{ textAlign: 'center', color: '#a1a1aa', padding: '2rem' }}>No Invoices found.</td></tr>
+                ) : (
+                  displayInvoices.map(inv => (
+                    <tr key={inv.id}>
+                      <td style={{ color: '#10B981', fontWeight: 600 }}>{inv.id}</td>
+                      <td>{inv.poId}</td>
+                      <td>{formatMoney(inv.amount)}</td>
+                      <td><span className={`status-badge status-${inv.status === 'paid' ? 'paid' : 'pending'}`}>{inv.status}</span></td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
