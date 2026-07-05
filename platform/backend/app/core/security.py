@@ -9,7 +9,7 @@ from typing import Optional
 import bcrypt
 import logging
 import os
-from jose import JWTError, jwt
+import jwt
 
 from ..config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
 
