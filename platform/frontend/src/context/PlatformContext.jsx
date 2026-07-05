@@ -109,9 +109,15 @@ export function PlatformProvider({ children }) {
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       if (sessionError) throw sessionError;
       
-      const getBackendUrl = () => import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      // Render uses VITE_BACKEND_URL, while older/local environments may use
+      // VITE_API_URL. In production, fall back to the same-origin Vercel API.
+      const backendUrl = (
+        import.meta.env.VITE_BACKEND_URL ||
+        import.meta.env.VITE_API_URL ||
+        (import.meta.env.DEV ? 'http://localhost:8000' : 'https://kncc-backend.onrender.com')
+      ).replace(/\/$/, '');
       
-      const res = await fetch(`${getBackendUrl()}/api/projects/`, {
+      const res = await fetch(`${backendUrl}/api/projects/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -126,8 +132,8 @@ export function PlatformProvider({ children }) {
       }
       
       const data = await res.json();
-      setProjects([data, ...projects]);
-      switchProject(data.id);
+      setProjects(currentProjects => [data, ...currentProjects]);
+      setActiveProject(data);
       return data;
     } catch (err) {
       console.error("Project creation failed:", err.message);
