@@ -52,3 +52,6 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60  # 60 minutes
 # ── Supabase (optional — used by seed endpoint) ───────────────────────────────
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
+
+# ── Trusted Proxies ────────────────────────────────────────────────────────
+TRUSTED_PROXIES = [p.strip() for p in os.environ.get("TRUSTED_PROXIES", "").split(",") if p.strip()]

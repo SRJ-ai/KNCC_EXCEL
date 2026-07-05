@@ -19,10 +19,12 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     )
     
     payload = None
+    
     # 1. Try decoding as Supabase JWT
-    if SUPABASE_JWT_SECRET:
+    supabase_secret = SUPABASE_JWT_SECRET.strip() if SUPABASE_JWT_SECRET else None
+    if supabase_secret:
         try:
-            payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=["HS256"], options={"verify_aud": False})
+            payload = jwt.decode(token, supabase_secret, algorithms=["HS256"], options={"verify_aud": False})
         except JWTError:
             pass
             
@@ -33,27 +35,26 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         except JWTError:
             raise credentials_exception
 
-    # Handle Supabase Payload (Supabase sets aud to "authenticated" or similar, but always provides email)
-    if payload.get("email"):
-        email = payload.get("email")
+    # Handle Supabase Payload
+    if payload.get("aud") == "authenticated" or "iss" in payload and "supabase" in payload["iss"]:
+        email = payload.get("email") or payload.get("user_metadata", {}).get("email") or f"{payload.get('sub')}@supabase.user"
+        
+        # Auto-provision user/org if they don't exist
         user = db.query(User).filter(User.email == email).first()
         if not user:
-            # Auto-provision user from Supabase metadata
-            meta = payload.get("user_metadata", {})
-            org_name = meta.get("organization_name", "KNCC Organization")
-            org = db.query(Organization).filter(Organization.name == org_name).first()
+            org = db.query(Organization).filter(Organization.name == "KNCC").first()
             if not org:
-                org = Organization(name=org_name)
+                org = Organization(name="KNCC")
                 db.add(org)
                 db.commit()
                 db.refresh(org)
-            
+                
             user = User(
                 email=email,
-                name=meta.get("name", "Engineer"),
-                role=meta.get("role", "member"),
+                name=payload.get("user_metadata", {}).get("name", "Supabase User"),
+                role="admin",
                 organization_id=org.id,
-                hashed_password="supabase_managed_auth" 
+                hashed_password="auto-provisioned"
             )
             db.add(user)
             db.commit()
