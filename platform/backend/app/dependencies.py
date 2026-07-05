@@ -119,23 +119,29 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
                 raise credentials_exception
 
     # Handle Supabase Payload
-    if payload.get("aud") == "authenticated" or ("iss" in payload and "supabase" in payload["iss"]):
+    is_supabase = payload.get("aud") == "authenticated" or ("iss" in payload and "supabase" in payload.get("iss", ""))
+    print(f"Decoded payload: {payload}, is_supabase: {is_supabase}")
+    
+    if is_supabase:
         email = payload.get("email") or payload.get("user_metadata", {}).get("email") or f"{payload.get('sub')}@supabase.user"
         name = payload.get("user_metadata", {}).get("name", "Supabase User")
         org = _get_or_create_org(db)
         user = _get_or_create_supabase_user(db, email, name, org.id)
         if user is None:
+            credentials_exception.detail = "Could not validate credentials: User could not be created in DB"
             raise credentials_exception
         return user
 
     # Handle Local Payload
     user_id = payload.get("sub")
     if user_id is None:
+        credentials_exception.detail = f"Could not validate credentials: No 'sub' in payload (payload: {payload})"
         raise credentials_exception
 
     try:
         uid = int(user_id)
     except (ValueError, TypeError):
+        credentials_exception.detail = f"Could not validate credentials: 'sub' is not an integer (payload: {payload})"
         raise credentials_exception
 
     user = db.query(User).filter(User.id == uid).first()
