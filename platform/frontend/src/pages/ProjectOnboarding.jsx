@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePlatform } from '../context/PlatformContext';
+import { useAuth } from '../context/AuthContext';
+import { LogOut } from 'lucide-react';
 import './ProjectOnboarding.css';
 
 export default function ProjectOnboarding() {
   const navigate = useNavigate();
   const { createProject } = usePlatform();
+  const { logout } = useAuth();
   
   const [formData, setFormData] = useState({
     name: '',
@@ -33,7 +36,13 @@ export default function ProjectOnboarding() {
 
   return (
     <div className="onboarding-container">
-      <div className="onboarding-card">
+      <div className="onboarding-card" style={{ position: 'relative' }}>
+        <button 
+          onClick={logout} 
+          style={{ position: 'absolute', top: '24px', right: '24px', background: 'transparent', border: 'none', color: '#666', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}
+        >
+          <LogOut size={14} /> Logout
+        </button>
         <h1 className="onboarding-title">Create New Project</h1>
         <p className="onboarding-subtitle">Set up your construction project to begin tracking materials, purchase orders, and documents.</p>
         

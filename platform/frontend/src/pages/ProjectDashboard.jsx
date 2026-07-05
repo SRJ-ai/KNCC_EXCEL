@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { usePlatform } from '../context/PlatformContext';
 import { useAuth } from '../context/AuthContext';
-import { Plus, FolderOpen, Building2, Calendar, FileSpreadsheet } from 'lucide-react';
+import { Plus, FolderOpen, Building2, Calendar, FileSpreadsheet, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import './ProjectDashboard.css';
 
 export default function ProjectDashboard() {
-  const { user, organization } = useAuth();
+  const { user, organization, logout } = useAuth();
   const { projects, switchProject, createProject } = usePlatform();
   const [showCreate, setShowCreate] = useState(false);
   const [formData, setFormData] = useState({ name: '', job_number: '', tax_rate: '1.06', client: 'KNCC Development Corp' });
@@ -41,9 +41,18 @@ export default function ProjectDashboard() {
           <h1 className="dash-title">Welcome back, {user?.name || 'Engineer'}</h1>
           <p className="dash-subtitle">Select a project workspace to continue or create a new one.</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
-          <Plus size={18} /> New Project
-        </button>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <button 
+            className="btn btn-secondary" 
+            onClick={logout}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'transparent', border: '1px solid #333', color: '#aaa', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer' }}
+          >
+            <LogOut size={16} /> Logout
+          </button>
+          <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
+            <Plus size={18} /> New Project
+          </button>
+        </div>
       </div>
 
       <div className="dash-grid">
