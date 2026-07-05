@@ -123,7 +123,10 @@ export default function UploadCenter() {
 
   const getToken = async () => {
     const { data: { session } } = await supabase.auth.getSession();
-    return session?.access_token || '';
+    if (!session?.access_token) {
+      throw new Error('Your session has expired. Please log out and log back in.');
+    }
+    return session.access_token;
   };
 
   const getBackendUrl = () => (import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000' : 'https://kncc-backend.onrender.com')).replace(/\/$/, '');
