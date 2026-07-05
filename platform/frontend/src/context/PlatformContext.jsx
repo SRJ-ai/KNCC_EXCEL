@@ -77,30 +77,30 @@ export function PlatformProvider({ children }) {
     setPos([]); setInvoices([]); setCos([]); setDocuments([]); setMaterials([]);
   };
 
-  useEffect(() => {
+  const refreshProjectData = async () => {
     if (!activeProject) return;
-    
-    const fetchProjectData = async () => {
-      try {
-        const pId = activeProject.id;
-        const [posRes, invRes, cosRes, docsRes, matsRes] = await Promise.all([
-          supabase.from('pos').select('*').eq('project_id', pId),
-          supabase.from('invoices').select('*').eq('project_id', pId),
-          supabase.from('cos').select('*').eq('project_id', pId),
-          supabase.from('documents').select('*').eq('project_id', pId).order('created_at', { ascending: false }),
-          supabase.from('materials').select('*').eq('project_id', pId),
-        ]);
+    try {
+      const pId = activeProject.id;
+      const [posRes, invRes, cosRes, docsRes, matsRes] = await Promise.all([
+        supabase.from('pos').select('*').eq('project_id', pId),
+        supabase.from('invoices').select('*').eq('project_id', pId),
+        supabase.from('cos').select('*').eq('project_id', pId),
+        supabase.from('documents').select('*').eq('project_id', pId).order('created_at', { ascending: false }),
+        supabase.from('materials').select('*').eq('project_id', pId),
+      ]);
 
-        if (posRes.data) setPos(posRes.data);
-        if (invRes.data) setInvoices(invRes.data);
-        if (cosRes.data) setCos(cosRes.data);
-        if (docsRes.data) setDocuments(docsRes.data);
-        if (matsRes.data) setMaterials(matsRes.data);
-      } catch (err) {
-        console.error("Failed to fetch project data:", err);
-      }
-    };
-    fetchProjectData();
+      if (posRes.data) setPos(posRes.data);
+      if (invRes.data) setInvoices(invRes.data);
+      if (cosRes.data) setCos(cosRes.data);
+      if (docsRes.data) setDocuments(docsRes.data);
+      if (matsRes.data) setMaterials(matsRes.data);
+    } catch (err) {
+      console.error("Failed to fetch project data:", err);
+    }
+  };
+
+  useEffect(() => {
+    refreshProjectData();
   }, [activeProject?.id]);
 
   const createProject = async (projectData) => {
@@ -204,7 +204,8 @@ export function PlatformProvider({ children }) {
       addInvoice,
       addCO,
       addMaterial,
-      addDocument
+      addDocument,
+      refreshProjectData
     }}>
       {children}
     </PlatformContext.Provider>

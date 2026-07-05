@@ -36,7 +36,7 @@ function StepBar({ step }) {
 }
 
 export default function UploadCenter() {
-  const { documents, addDocument, activeProject } = usePlatform();
+  const { documents, addDocument, activeProject, refreshProjectData } = usePlatform();
   const { user } = useAuth();
   const fileInputRef = useRef(null);
 
@@ -237,6 +237,7 @@ export default function UploadCenter() {
 
       if (activeProject?.id) {
         clearCachedStates(activeProject.id);
+        if (refreshProjectData) await refreshProjectData();
       }
       skipSaveRef.current = true;
       setLastResult(result);
