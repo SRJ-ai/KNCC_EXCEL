@@ -114,7 +114,7 @@ export function PlatformProvider({ children }) {
       const backendUrl = (
         import.meta.env.VITE_BACKEND_URL ||
         import.meta.env.VITE_API_URL ||
-        (import.meta.env.DEV ? 'http://localhost:8000' : 'https://kncc-backend.onrender.com')
+        (import.meta.env.DEV ? 'http://localhost:8000' : '')
       ).replace(/\/$/, '');
       
       const res = await fetch(`${backendUrl}/api/projects/`, {
