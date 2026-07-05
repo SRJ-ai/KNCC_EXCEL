@@ -22,17 +22,21 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     
     # 1. Try decoding as Supabase JWT
     supabase_secret = SUPABASE_JWT_SECRET.strip() if SUPABASE_JWT_SECRET else None
+    supabase_err = "SUPABASE_JWT_SECRET is not set on the backend!" if not supabase_secret else None
+    
     if supabase_secret:
         try:
             payload = jwt.decode(token, supabase_secret, algorithms=["HS256"], options={"verify_aud": False})
-        except JWTError:
-            pass
+        except JWTError as e:
+            supabase_err = f"JWT decode failed: {str(e)}"
             
     # 2. Fallback to Local JWT
     if not payload:
         try:
             payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        except JWTError:
+        except JWTError as e:
+            local_err = str(e)
+            credentials_exception.detail = f"Could not validate credentials. Supabase Error: {supabase_err} | Local Error: {local_err}"
             raise credentials_exception
 
     # Handle Supabase Payload
