@@ -397,12 +397,12 @@ export default function UploadCenter() {
             <div>
               <h3 className="uc-drop-title" style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0 0 0.5rem 0', color: '#f4f4f5' }}>
                 {uploading ? 'Uploading securely...'
-                  : previewing ? 'AI is analyzing & mapping...'
+                  : previewing ? 'Analyzing your document...'
                   : 'Drag & drop your PDF'}
               </h3>
               <p className="uc-drop-desc" style={{ color: '#a1a1aa', margin: 0, fontSize: '0.9rem' }}>
                 {previewing
-                  ? 'Extracting line items and cross-referencing Master Excel... (~5s)'
+                  ? 'Extracting line items...'
                   : 'or click to browse from your computer'}
               </p>
             </div>
