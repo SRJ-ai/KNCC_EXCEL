@@ -1,4 +1,5 @@
 import os
+import base64
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
@@ -10,7 +11,13 @@ from .models.user import User
 from .models.organization import Organization
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login")
-SUPABASE_JWT_SECRET = os.environ.get("SUPABASE_JWT_SECRET")
+
+# Supabase signs JWTs using the base64-decoded bytes of the secret
+_raw_supabase_secret = os.environ.get("SUPABASE_JWT_SECRET", "")
+try:
+    SUPABASE_JWT_SECRET = base64.b64decode(_raw_supabase_secret) if _raw_supabase_secret else None
+except Exception:
+    SUPABASE_JWT_SECRET = _raw_supabase_secret.encode() if _raw_supabase_secret else None
 
 
 def _get_or_create_org(db: Session) -> Organization:
@@ -85,13 +92,12 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
 
     payload = None
 
-    # 1. Try decoding as Supabase JWT (with secret)
-    supabase_secret = SUPABASE_JWT_SECRET.strip() if SUPABASE_JWT_SECRET else None
-    supabase_err = "SUPABASE_JWT_SECRET is not set on the backend!" if not supabase_secret else None
+    # 1. Try decoding as Supabase JWT (with secret — Supabase uses base64-decoded bytes as key)
+    supabase_err = "SUPABASE_JWT_SECRET is not set on the backend!" if not SUPABASE_JWT_SECRET else None
 
-    if supabase_secret:
+    if SUPABASE_JWT_SECRET:
         try:
-            payload = jwt.decode(token, supabase_secret, algorithms=["HS256"], options={"verify_aud": False})
+            payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=["HS256"], options={"verify_aud": False})
         except JWTError as e:
             supabase_err = f"JWT decode failed: {str(e)}"
 
