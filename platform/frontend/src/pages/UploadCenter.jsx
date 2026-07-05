@@ -129,7 +129,7 @@ export default function UploadCenter() {
     return session.access_token;
   };
 
-  const getBackendUrl = () => (import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000' : 'https://kncc-backend.onrender.com')).replace(/\/$/, '');
+  const getBackendUrl = () => (import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000' : '')).replace(/\/$/, '');
 
   const handleFile = useCallback(async (file) => {
     if (!file) return;
