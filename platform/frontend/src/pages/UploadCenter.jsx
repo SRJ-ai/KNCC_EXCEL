@@ -200,7 +200,7 @@ export default function UploadCenter() {
   const handleConfirm = async () => {
     if (!preview || !uploadedFile || !activeProject) return;
     if (!uploadedFile.fileObj) {
-      setError('File data lost. Please click Start Over and re-upload the document.');
+      alert('File data was lost due to page refresh. Please click "Discard Changes" and re-upload the PDF to continue.');
       return;
     }
     
