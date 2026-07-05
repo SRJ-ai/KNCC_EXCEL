@@ -1,23 +1,19 @@
 import React, { useState } from 'react';
-import { Folder, FileText, FileImage, FileSpreadsheet, Search, Plus } from 'lucide-react';
+import { Folder, FileText, FileImage, FileSpreadsheet, Search, Plus, Download } from 'lucide-react';
+import { usePlatform } from '../context/PlatformContext';
 import './DocumentViewer.css';
 
 export default function DocumentViewer() {
-  const [activeFolder, setActiveFolder] = useState('Drawings');
+  const { documents } = usePlatform();
+  const [activeFolder, setActiveFolder] = useState('Purchase Orders');
 
-  const folders = ['Drawings', 'Specifications', 'Contracts', 'RFI Responses', 'Safety Manuals'];
+  const folders = ['Purchase Orders', 'Invoices', 'Change Orders'];
 
+  // Group real documents by their doc_type
   const files = {
-    'Drawings': [
-      { id: 1, name: 'A-101_FloorPlan.pdf', size: '2.4 MB', type: 'pdf' },
-      { id: 2, name: 'S-201_Foundation.pdf', size: '5.1 MB', type: 'pdf' },
-      { id: 3, name: 'E-301_Lighting.pdf', size: '1.8 MB', type: 'pdf' },
-      { id: 4, name: 'Site_Render_Final.png', size: '12.4 MB', type: 'image' },
-    ],
-    'Specifications': [
-      { id: 5, name: 'Concrete_Specs_v3.pdf', size: '1.2 MB', type: 'pdf' },
-      { id: 6, name: 'Steel_Tolerances.pdf', size: '0.8 MB', type: 'pdf' },
-    ]
+    'Purchase Orders': documents.filter(d => d.doc_type === 'PO'),
+    'Invoices': documents.filter(d => d.doc_type === 'INV'),
+    'Change Orders': documents.filter(d => d.doc_type === 'CO'),
   };
 
   const currentFiles = files[activeFolder] || [];
@@ -35,9 +31,6 @@ export default function DocumentViewer() {
               style={{ background: 'rgba(24,24,27,0.6)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '0.75rem 1rem 0.75rem 2.5rem', color: '#fff', width: '250px' }}
             />
           </div>
-          <button style={{ padding: '0.75rem 1.5rem', background: '#3B82F6', border: 'none', borderRadius: '6px', color: '#fff', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-            <Plus size={18} /> New Folder
-          </button>
         </div>
       </div>
 
@@ -55,6 +48,9 @@ export default function DocumentViewer() {
               >
                 <Folder size={18} fill={activeFolder === folder ? '#3B82F6' : 'none'} />
                 {folder}
+                <span style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.1)', padding: '2px 8px', borderRadius: '12px', fontSize: '11px', color: '#a1a1aa' }}>
+                  {files[folder].length}
+                </span>
               </li>
             ))}
           </ul>
@@ -64,20 +60,16 @@ export default function DocumentViewer() {
           {currentFiles.length === 0 ? (
             <div style={{ gridColumn: '1 / -1', textAlign: 'center', color: '#a1a1aa', marginTop: '4rem' }}>
               <Folder size={48} style={{ opacity: 0.2, marginBottom: '1rem' }} />
-              <p>This folder is empty.</p>
+              <p>No documents uploaded in this folder yet.</p>
             </div>
           ) : (
             currentFiles.map(file => (
               <div key={file.id} className="file-card">
-                {file.type === 'pdf' ? (
-                  <FileText size={48} className="file-card-icon" />
-                ) : file.type === 'image' ? (
-                  <FileImage size={48} className="file-card-icon" style={{ color: '#10B981' }} />
-                ) : (
-                  <FileSpreadsheet size={48} className="file-card-icon" style={{ color: '#F59E0B' }} />
-                )}
-                <div className="file-card-name">{file.name}</div>
-                <div className="file-card-size">{file.size}</div>
+                <FileText size={48} className="file-card-icon" />
+                <div className="file-card-name">{file.filename || file.file_name}</div>
+                <div className="file-card-size">
+                  {new Date(file.created_at).toLocaleDateString()}
+                </div>
               </div>
             ))
           )}
@@ -86,3 +78,4 @@ export default function DocumentViewer() {
     </div>
   );
 }
+
