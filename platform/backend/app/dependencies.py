@@ -3,6 +3,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from .database import get_db
 from .core.security import SECRET_KEY, ALGORITHM
 from .models.user import User
@@ -11,117 +12,143 @@ from .models.organization import Organization
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login")
 SUPABASE_JWT_SECRET = os.environ.get("SUPABASE_JWT_SECRET")
 
+
+def _get_or_create_org(db: Session) -> Organization:
+    """Get or create KNCC organization, safely handling race conditions."""
+    org = db.query(Organization).filter(Organization.name == "KNCC").first()
+    if org:
+        return org
+    try:
+        org = Organization(name="KNCC")
+        db.add(org)
+        db.commit()
+        db.refresh(org)
+        return org
+    except IntegrityError:
+        db.rollback()
+        # Another instance created it in parallel — just fetch it
+        return db.query(Organization).filter(Organization.name == "KNCC").first()
+
+
+def _get_or_create_user(db: Session, uid: int, email: str, name: str, org_id: int) -> User:
+    """Get or create user, safely handling race conditions."""
+    user = db.query(User).filter(User.id == uid).first()
+    if user:
+        return user
+    try:
+        user = User(
+            id=uid,
+            email=email,
+            name=name,
+            role="admin",
+            organization_id=org_id,
+            hashed_password="auto-provisioned-local"
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return user
+    except IntegrityError:
+        db.rollback()
+        # Another instance created it in parallel — just fetch it
+        return db.query(User).filter(User.id == uid).first()
+
+
+def _get_or_create_supabase_user(db: Session, email: str, name: str, org_id: int) -> User:
+    """Get or create Supabase user, safely handling race conditions."""
+    user = db.query(User).filter(User.email == email).first()
+    if user:
+        return user
+    try:
+        user = User(
+            email=email,
+            name=name,
+            role="admin",
+            organization_id=org_id,
+            hashed_password="auto-provisioned"
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return user
+    except IntegrityError:
+        db.rollback()
+        return db.query(User).filter(User.email == email).first()
+
+
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    
+
     payload = None
-    
-    # 1. Try decoding as Supabase JWT
+
+    # 1. Try decoding as Supabase JWT (with secret)
     supabase_secret = SUPABASE_JWT_SECRET.strip() if SUPABASE_JWT_SECRET else None
     supabase_err = "SUPABASE_JWT_SECRET is not set on the backend!" if not supabase_secret else None
-    
+
     if supabase_secret:
         try:
             payload = jwt.decode(token, supabase_secret, algorithms=["HS256"], options={"verify_aud": False})
         except JWTError as e:
             supabase_err = f"JWT decode failed: {str(e)}"
-            
-    # 2. Bypass signature verification if secret is wrong or missing (requested by user)
+
+    # 2. Try local JWT
     if not payload:
         try:
-            # Fallback to Local JWT first
             payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         except JWTError as local_e:
+            # 3. Last resort: bypass signature verification for Supabase tokens
             try:
-                # DANGEROUS: Bypasses signature verification completely
-                # Allows any Supabase token to work even without the JWT secret
                 payload = jwt.decode(token, key="", algorithms=["HS256"], options={"verify_signature": False, "verify_aud": False})
                 if not ("iss" in payload and "supabase" in payload.get("iss", "")):
                     payload = None
             except JWTError:
                 pass
-                
+
             if not payload:
-                local_err = str(local_e)
-                credentials_exception.detail = f"Could not validate credentials. Supabase Error: {supabase_err} | Local Error: {local_err}"
+                credentials_exception.detail = f"Could not validate credentials. Supabase Error: {supabase_err} | Local Error: {str(local_e)}"
                 raise credentials_exception
 
     # Handle Supabase Payload
-    if payload.get("aud") == "authenticated" or "iss" in payload and "supabase" in payload["iss"]:
+    if payload.get("aud") == "authenticated" or ("iss" in payload and "supabase" in payload["iss"]):
         email = payload.get("email") or payload.get("user_metadata", {}).get("email") or f"{payload.get('sub')}@supabase.user"
-        
-        # Auto-provision user/org if they don't exist
-        user = db.query(User).filter(User.email == email).first()
-        if not user:
-            org = db.query(Organization).filter(Organization.name == "KNCC").first()
-            if not org:
-                org = Organization(name="KNCC")
-                db.add(org)
-                db.commit()
-                db.refresh(org)
-                
-            user = User(
-                email=email,
-                name=payload.get("user_metadata", {}).get("name", "Supabase User"),
-                role="admin",
-                organization_id=org.id,
-                hashed_password="auto-provisioned"
-            )
-            db.add(user)
-            db.commit()
-            db.refresh(user)
+        name = payload.get("user_metadata", {}).get("name", "Supabase User")
+        org = _get_or_create_org(db)
+        user = _get_or_create_supabase_user(db, email, name, org.id)
+        if user is None:
+            raise credentials_exception
         return user
-        
-    # Handle Local Payload (relies on sub being an integer ID)
+
+    # Handle Local Payload
     user_id = payload.get("sub")
     if user_id is None:
         raise credentials_exception
-    
+
     try:
         uid = int(user_id)
-        user = db.query(User).filter(User.id == uid).first()
-        
-        # Auto-provision local user if missing (for legacy tokens)
-        if user is None:
-            org = db.query(Organization).filter(Organization.name == "KNCC").first()
-            if not org:
-                org = Organization(name="KNCC")
-                db.add(org)
-                db.commit()
-                db.refresh(org)
-            
-            if uid == 1:
-                email = "admin@kncc.com"
-                name = "Admin User"
-            elif uid == 2:
-                email = "demo@kncc.com"
-                name = "Demo Engineer"
-            else:
-                email = f"user_{uid}@kncc.com"
-                name = f"Legacy User {uid}"
-            
-            user = User(
-                id=uid,
-                email=email,
-                name=name,
-                role="admin",
-                organization_id=org.id,
-                hashed_password="auto-provisioned-local"
-            )
-            db.add(user)
-            db.commit()
-            db.refresh(user)
-            
-    except ValueError:
+    except (ValueError, TypeError):
         raise credentials_exception
+
+    user = db.query(User).filter(User.id == uid).first()
+    if user is None:
+        # Auto-provision missing local user
+        if uid == 1:
+            email, name = "admin@kncc.com", "Admin User"
+        elif uid == 2:
+            email, name = "demo@kncc.com", "Demo Engineer"
+        else:
+            email, name = f"user_{uid}@kncc.com", f"Legacy User {uid}"
+
+        org = _get_or_create_org(db)
+        user = _get_or_create_user(db, uid, email, name, org.id)
 
     if user is None or not user.is_active:
         raise credentials_exception
     return user
+
 
 def get_current_project(project_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     from .models.project import Project
@@ -129,4 +156,3 @@ def get_current_project(project_id: int, current_user: User = Depends(get_curren
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     return project
-
