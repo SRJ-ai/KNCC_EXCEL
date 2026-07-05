@@ -38,11 +38,13 @@ class TestSupabaseAccountInjection(unittest.TestCase):
         # Mock GET response (empty user list)
         get_response_data = json.dumps({"users": []}).encode('utf-8')
         mock_get_resp = MagicMock()
+        mock_get_resp.__enter__.return_value = mock_get_resp
         mock_get_resp.read.return_value = get_response_data
         
         # Mock POST response (created user)
         post_response_data = json.dumps({"id": "some-uuid", "email": "temp@kncc.com"}).encode('utf-8')
         mock_post_resp = MagicMock()
+        mock_post_resp.__enter__.return_value = mock_post_resp
         mock_post_resp.read.return_value = post_response_data
         
         # We expect 3 total calls: 1 GET to list users, 2 POSTs to create users
@@ -88,6 +90,7 @@ class TestSupabaseAccountInjection(unittest.TestCase):
             ]
         }).encode('utf-8')
         mock_get_resp = MagicMock()
+        mock_get_resp.__enter__.return_value = mock_get_resp
         mock_get_resp.read.return_value = get_response_data
         
         mock_urlopen.side_effect = [mock_get_resp]
@@ -107,11 +110,13 @@ class TestSupabaseAccountInjection(unittest.TestCase):
             ]
         }).encode('utf-8')
         mock_get_resp = MagicMock()
+        mock_get_resp.__enter__.return_value = mock_get_resp
         mock_get_resp.read.return_value = get_response_data
         
         # Mock POST response for engineer creation
         post_response_data = json.dumps({"id": "2", "email": "engineer@kncc.com"}).encode('utf-8')
         mock_post_resp = MagicMock()
+        mock_post_resp.__enter__.return_value = mock_post_resp
         mock_post_resp.read.return_value = post_response_data
         
         mock_urlopen.side_effect = [mock_get_resp, mock_post_resp]
@@ -132,6 +137,7 @@ class TestSupabaseAccountInjection(unittest.TestCase):
         # Mock GET response (empty list)
         get_response_data = json.dumps({"users": []}).encode('utf-8')
         mock_get_resp = MagicMock()
+        mock_get_resp.__enter__.return_value = mock_get_resp
         mock_get_resp.read.return_value = get_response_data
         
         # Mock POST HTTPError 400 (User already exists)
@@ -147,6 +153,7 @@ class TestSupabaseAccountInjection(unittest.TestCase):
         # For the first user (admin), return the HTTPError. For the second (engineer), return success.
         post_response_data = json.dumps({"id": "2", "email": "engineer@kncc.com"}).encode('utf-8')
         mock_post_resp = MagicMock()
+        mock_post_resp.__enter__.return_value = mock_post_resp
         mock_post_resp.read.return_value = post_response_data
         
         mock_urlopen.side_effect = [mock_get_resp, http_error, mock_post_resp]
