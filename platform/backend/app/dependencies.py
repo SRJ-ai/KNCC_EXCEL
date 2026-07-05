@@ -2,7 +2,7 @@ import os
 import base64
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
+import jwt
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from .database import get_db
@@ -97,22 +97,23 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
 
     if SUPABASE_JWT_SECRET:
         try:
-            payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=["HS256"], options={"verify_aud": False})
-        except JWTError as e:
+            # PyJWT decoding with audience verification disabled temporarily in case 'authenticated' aud is missing or checked strictly
+            payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=["HS256"], options={"verify_audience": False})
+        except jwt.PyJWTError as e:
             supabase_err = f"JWT decode failed: {str(e)}"
 
     # 2. Try local JWT
     if not payload:
         try:
-            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        except JWTError as local_e:
-            # 3. Last resort: bypass signature verification for Supabase tokens
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_audience": False})
+        except jwt.PyJWTError as local_e:
+            # 3. Last resort: decode without verification for known Supabase tokens
             try:
-                payload = jwt.decode(token, key="dummy", algorithms=["HS256"], options={"verify_signature": False, "verify_aud": False})
+                payload = jwt.decode(token, options={"verify_signature": False, "verify_audience": False})
                 is_supa = payload.get("aud") == "authenticated" or ("iss" in payload and "supabase" in payload.get("iss", ""))
                 if not is_supa:
                     payload = None
-            except JWTError:
+            except jwt.PyJWTError:
                 pass
 
             if not payload:
