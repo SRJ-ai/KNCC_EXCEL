@@ -412,7 +412,7 @@ function COPreviewPage({ preview }) {
 /* ══════════════════════════════════════════════════════
    MAIN EXPORT — Full-page preview
 ══════════════════════════════════════════════════════ */
-export default function UploadPreviewPage({ preview, onConfirm, onDiscard, confirming }) {
+export default function UploadPreviewPage({ preview, onConfirm, onDiscard, confirming, error }) {
   const [showCoModal, setShowCoModal] = useState(false);
 
   if (!preview) return null;
@@ -469,6 +469,13 @@ export default function UploadPreviewPage({ preview, onConfirm, onDiscard, confi
       {duplicate_warning && (
         <div className="upp-dup-warn">
           <AlertTriangle size={15}/> {duplicate_warning}
+        </div>
+      )}
+
+      {/* ── Error Banner ── */}
+      {error && (
+        <div className="upp-error-warn" style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '1rem', margin: '0 2rem', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem', fontWeight: '500' }}>
+          <AlertTriangle size={15}/> {error}
         </div>
       )}
 

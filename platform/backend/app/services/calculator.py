@@ -2,13 +2,14 @@
 Calculator service — fixed:
   FIX #4: Tax rate is now accepted as a parameter (from Project.tax_rate or parsed doc),
            NOT hardcoded to 1.06.
+  FIX #7: All calculations use po_co_qty (PO qty + all CO adjustments) not raw qty.
 """
 
 
 def compute_material_totals(mat, tax_rate: float = 1.06) -> dict:
     """
     Compute LF/BF/cost totals for a material row.
-    FIX #4: tax_rate passed in, defaults to 1.06 only as a last resort.
+    Uses po_co_qty (= PO qty + CO adjustments) as the authoritative quantity.
     """
     lf_pcs = 0
     bf_sf = 0
@@ -16,32 +17,39 @@ def compute_material_totals(mat, tax_rate: float = 1.06) -> dict:
 
     mat_type = str(mat.type).lower() if mat.type else ""
 
-    if mat.length:
-        lf_pcs = (mat.qty or 0) * mat.length
+    # Use po_co_qty if available; fall back to qty for backwards compat
+    qty = (mat.po_co_qty or mat.qty or 0)
 
     if mat_type == "lumber":
+        if mat.length:
+            lf_pcs = qty * mat.length
         if mat.thickness and mat.width and mat.length:
-            bf_sf = ((mat.qty or 0) * mat.thickness * mat.width * mat.length) / 12
+            bf_sf = (qty * mat.thickness * mat.width * mat.length) / 12
         if mat.cost_mbf:
             total_cost = (bf_sf * mat.cost_mbf) / 1000
 
     elif mat_type == "panels":
+        # Panels: thickness=4, width=8 (sheet dimensions); quantity is piece count
         if mat.thickness and mat.width:
-            bf_sf = (mat.qty or 0) * mat.thickness * mat.width
+            bf_sf = qty * mat.thickness * mat.width
         if mat.cost_mbf:
             total_cost = (bf_sf * mat.cost_mbf) / 1000
 
     elif mat_type == "lvl":
         if mat.length:
-            lf_pcs = (mat.qty or 0) * mat.length
+            lf_pcs = qty * mat.length
         if mat.cost_mbf:
             total_cost = lf_pcs * mat.cost_mbf
 
     elif mat_type in ("each", "invoice"):
+        # Each items: lf_pcs = quantity (counted as individual pieces)
+        lf_pcs = qty
         if mat.cost_mbf:
-            total_cost = (mat.qty or 0) * mat.cost_mbf
+            total_cost = lf_pcs * mat.cost_mbf
 
-    total_cost_tax = total_cost * tax_rate
+    # Normalize tax_rate: if stored as 0.06 convert to multiplier 1.06
+    mult = tax_rate if tax_rate > 1 else (1 + tax_rate)
+    total_cost_tax = total_cost * mult
 
     return {
         "lf_pcs": round(lf_pcs, 4),
@@ -54,11 +62,7 @@ def compute_material_totals(mat, tax_rate: float = 1.06) -> dict:
 def update_delivery_totals(mat, deliveries, tax_rate: float = 1.06) -> dict:
     """
     Compute delivered quantities and costs.
-    FIX #4: tax_rate passed in.
-    FIX #6: qty_multiplier is applied here when accumulating deliveries.
     """
-    # deliveries is a list of Delivery ORM objects
-    # Each delivery may carry a qty_multiplier from the matching step
     total_delivered = 0
     for d in deliveries:
         multiplier = getattr(d, "qty_multiplier", 1.0) or 1.0
@@ -70,8 +74,9 @@ def update_delivery_totals(mat, deliveries, tax_rate: float = 1.06) -> dict:
 
     mat_type = str(mat.type).lower() if mat.type else ""
 
-    if mat.length:
+    if mat_type in ("lumber", "lvl") and mat.length:
         delivered_lf = total_delivered * mat.length
+    # Panels and Each have no LF (delivered_lf stays 0)
 
     if mat_type == "lumber":
         if mat.thickness and mat.width and mat.length:
@@ -93,11 +98,15 @@ def update_delivery_totals(mat, deliveries, tax_rate: float = 1.06) -> dict:
         if mat.cost_mbf:
             delivered_cost = total_delivered * mat.cost_mbf
 
-    delivered_cost_tax = delivered_cost * tax_rate
+    mult = tax_rate if tax_rate > 1 else (1 + tax_rate)
+    delivered_cost_tax = delivered_cost * mult
 
     total_cost_data = compute_material_totals(mat, tax_rate)
     total_cost = total_cost_data["total_cost"]
-    pct_delivery = (delivered_cost / total_cost) if total_cost > 0 else 0
+
+    # % delivery = delivered pieces / total pieces (qty-based, not cost-based)
+    po_co_qty = mat.po_co_qty or mat.qty or 0
+    pct_delivery = (total_delivered / po_co_qty) if po_co_qty > 0 else 0
 
     return {
         "total_delivered": round(total_delivered, 4),

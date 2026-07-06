@@ -1,12 +1,5 @@
 """
-Upload router — fixed:
-  FIX #1: /confirm now accepts UploadFile directly (no pre-upload step required).
-           Also supports confirming a previously uploaded file by filename.
-  FIX #7: UPLOAD_DIR guaranteed to exist (also ensured in main.py startup).
-  FIX #8: CO adjustments are now parsed and persisted to DB.
-  FIX #13: Duplicate invoice guard — rejects already-processed invoice numbers.
-  NEW: /preview endpoint returns a human-readable diff of what will change,
-       mapped to Client_Requirments_Doc.xlsx rows, before any data is committed.
+Upload router — Phase 2: Intelligent Local Mapping and Heuristics (R2)
 """
 from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
@@ -25,46 +18,95 @@ from ..models import Document, Project, COAdjustment, Material, Activity, Delive
 from ..services.classifier import classify_document
 from ..services.pdf_parser import parse_pdf_document
 
+from ..services.matcher import (
+    classify_item_category,
+    normalize_text,
+    parse_dimension_val,
+    parse_dimensions_string,
+    extract_dimensions_from_text,
+    get_dimensions,
+    score_match,
+    match_material
+)
+
 router = APIRouter()
 
 # Ensure upload directory exists
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
-def _log_activity(db: Session, project_id: int, action: str, detail: str):
+def _log_activity(db: Session, project_id: str, action: str, detail: str):
     """Write an activity log entry."""
     act = Activity(project_id=project_id, action=action, detail=detail)
     db.add(act)
 
 
-def _save_co_adjustments(db: Session, project_id: int, doc_data, doc_id: int):
+def _save_co_adjustments(db: Session, project_id: str, doc_data, doc_id: str):
     """
     Parse CO line items and persist as COAdjustment records linked to matching Materials.
+    Updates existing materials or inserts a new Material record if no match is found.
     """
+    from ..services.calculator import compute_material_totals
+
+    project = db.query(Project).filter(Project.id == project_id).first()
+    tax_rate = project.tax_rate if project else 0.0
+
     materials = db.query(Material).filter(Material.project_id == project_id).all()
     for item in doc_data.line_items:
         best = None
         best_score = 0
         for mat in materials:
-            score = 0
-            mat_desc = (mat.material_type or "").upper()
-            inv_desc = item.description.upper()
-            for word in mat_desc.split():
-                if len(word) > 2 and word in inv_desc:
-                    score += 2
-            if item.dimensions and mat.thickness and mat.width and mat.length:
-                dm = re.match(r'(\d+)[Xx](\d+)[Xx](\d+)', item.dimensions.strip())
-                if dm:
-                    t, w, l = int(dm.group(1)), int(dm.group(2)), int(dm.group(3))
-                    if mat.thickness == t: score += 5
-                    if mat.width == w: score += 5
-                    if mat.length == l: score += 5
+            score = score_match(
+                inv_desc=item.description or "",
+                inv_dims=item.dimensions or "",
+                inv_code=item.item_code or "",
+                mat_type=mat.type or "",
+                mat_thickness=mat.thickness,
+                mat_width=mat.width,
+                mat_length=mat.length,
+                mat_desc=mat.material_type or ""
+            )
             if score > best_score:
                 best_score = score
                 best = mat
 
+        inv_category = classify_item_category(item.description or "", item.item_code or "")
+        threshold = 10 if inv_category in ("each", "invoice") else 15
+
+        if best and best_score >= threshold:
+            best.co_qty = (best.co_qty or 0.0) + item.quantity
+            best.po_co_qty = (best.qty or 0.0) + (best.co_qty or 0.0)
+            totals = compute_material_totals(best, tax_rate)
+            best.lf_pcs = totals.get("lf_pcs", 0.0)
+            best.bf_sf = totals.get("bf_sf", 0.0)
+            best.total_cost = totals.get("total_cost", 0.0)
+            best.total_cost_tax = totals.get("total_cost_tax", 0.0)
+        else:
+            t, w, l = get_dimensions(item.description or "", item.dimensions or "")
+            category = classify_item_category(item.description or "", item.item_code or "")
+            best = Material(
+                project_id=project_id,
+                type=category,
+                qty=0.0,
+                co_qty=item.quantity,
+                po_co_qty=item.quantity,
+                thickness=t,
+                width=w,
+                length=l,
+                material_type=item.description,
+                cost_mbf=item.unit_price or 0.0
+            )
+            totals = compute_material_totals(best, tax_rate)
+            best.lf_pcs = totals.get("lf_pcs", 0.0)
+            best.bf_sf = totals.get("bf_sf", 0.0)
+            best.total_cost = totals.get("total_cost", 0.0)
+            best.total_cost_tax = totals.get("total_cost_tax", 0.0)
+            db.add(best)
+            db.flush()
+            materials.append(best)
+
         adj = COAdjustment(
-            material_id=best.id if best and best_score >= 6 else None,
+            material_id=best.id if best else None,
             co_number=doc_data.number,
             co_date=str(doc_data.date) if doc_data.date else "",
             qty_change=item.quantity,
@@ -72,96 +114,154 @@ def _save_co_adjustments(db: Session, project_id: int, doc_data, doc_id: int):
         )
         db.add(adj)
 
-        if best and best_score >= 6:
-            best.co_qty = (best.co_qty or 0) + item.quantity
-            best.po_co_qty = (best.qty or 0) + (best.co_qty or 0)
 
-
-def _match_line_to_material(item, materials, excel_rows: list) -> dict:
+def _match_line_to_material(item, materials, excel_rows: list, db: Optional[Session] = None, project_id: Optional[str] = None) -> dict:
     """
     Match a parsed line item to the closest material and Excel row reference.
     """
+    if not project_id and db and materials:
+        project_id = getattr(materials[0], 'project_id', None)
+
+    mapped_mat = None
+    if db and project_id and item.description:
+        mapping = db.query(ItemMapping).filter(
+            ItemMapping.project_id == project_id,
+            ItemMapping.invoice_description == item.description
+        ).first()
+        if mapping:
+            for m in materials:
+                if m.id == mapping.material_id:
+                    mapped_mat = m
+                    break
+            if not mapped_mat:
+                mapped_mat = db.query(Material).filter(Material.id == mapping.material_id).first()
+
     best = None
     best_score = 0
+    if mapped_mat:
+        best = mapped_mat
+        best_score = 100
+    else:
+        for mat in materials:
+            score = score_match(
+                inv_desc=item.description or "",
+                inv_dims=item.dimensions or "",
+                inv_code=item.item_code or "",
+                mat_type=mat.type or "",
+                mat_thickness=mat.thickness,
+                mat_width=mat.width,
+                mat_length=mat.length,
+                mat_desc=mat.material_type or ""
+            )
+            if score > best_score:
+                best_score = score
+                best = mat
+
     best_excel = None
-
-    # 1. First try matching against existing DB materials
-    for i, mat in enumerate(materials):
-        score = 0
-        mat_desc = (mat.material_type or "").upper()
-        item_desc = item.description.upper() if item.description else ""
-
-        for word in mat_desc.split():
-            if len(word) > 2 and word in item_desc:
-                score += 2
-
-        if item.dimensions and mat.thickness and mat.width and mat.length:
-            dm = re.match(r'(\d+)[Xx](\d+)[Xx](\d+)', item.dimensions.strip())
-            if dm:
-                t, w, l = int(dm.group(1)), int(dm.group(2)), int(dm.group(3))
-                if mat.thickness == t: score += 5
-                if mat.width == w: score += 5
-                if mat.length == l: score += 5
-
-        if hasattr(mat, 'type') and mat.type and item.item_code:
-            if item.item_code.upper() in (mat.type or "").upper():
-                score += 4
-
-        if score > best_score:
-            best_score = score
-            best = mat
-
-    # 2. Match against excel rows directly, independent of DB materials
     excel_score = 0
-    
-    i_desc = item.description.upper() if item.description else ""
-    if item.dimensions:
-        dm = re.match(r'(\d+)[Xx](\d+)[Xx](\d+)', item.dimensions.strip())
-        if dm:
-            i_desc = f"{dm.group(1)} X {dm.group(2)} {dm.group(3)} {i_desc}".strip()
-        else:
-            # Handle panels like 4x8
-            i_desc = f"{item.dimensions.upper().replace('X', ' X ')} {i_desc}".strip()
+
+    item_desc_norm = normalize_text(item.description or "")
+    item_t, item_w, item_l = get_dimensions(item.description or "", item.dimensions or "")
 
     for er in excel_rows:
         e_score = 0
-        e_desc = (er.get("description") or "").upper()
-        
-        if i_desc and i_desc in e_desc:
-            e_score += 15
-        elif i_desc:
-            words = e_desc.split()
-            matched_words = 0
-            for w in i_desc.split():
-                if len(w) > 0 and w in words:
-                    matched_words += 1
-            e_score += matched_words * 2
+        e_desc = er.get("description") or ""
+        e_desc_norm = normalize_text(e_desc)
 
-        # Bonus for exact match
-        if i_desc == e_desc:
+        inv_cat = classify_item_category(item.description or "", item.item_code or "")
+        er_cat = classify_item_category(e_desc, "")
+        if er.get("type"):
+            er_cat = classify_item_category(er["type"], "")
+
+        if inv_cat == er_cat:
             e_score += 10
+        elif inv_cat in er_cat or er_cat in inv_cat:
+            e_score += 5
+
+        er_t = parse_dimension_val(str(er.get("thickness"))) if er.get("thickness") is not None else None
+        er_w = parse_dimension_val(str(er.get("width"))) if er.get("width") is not None else None
+        er_l = parse_dimension_val(str(er.get("length"))) if er.get("length") is not None else None
+
+        if er_t is None or er_w is None or er_l is None:
+            er_t_d, er_w_d, er_l_d = get_dimensions(e_desc, "")
+            if er_t is None: er_t = er_t_d
+            if er_w is None: er_w = er_w_d
+            if er_l is None: er_l = er_l_d
+
+        if item_t is not None and er_t is not None:
+            if abs(item_t - er_t) < 0.01:
+                e_score += 5
+        if item_w is not None and er_w is not None:
+            if abs(item_w - er_w) < 0.01:
+                e_score += 5
+        if item_l is not None and er_l is not None:
+            if abs(item_l - er_l) < 0.01:
+                e_score += 5
+
+        keywords = ["TREATED", "SOUTHERN YELLOW PINE", "LVL", "OSB", "PLYWOOD", "ZIP"]
+        for kw in keywords:
+            if kw in item_desc_norm and kw in e_desc_norm:
+                e_score += 3
+
+        i_words = set(item_desc_norm.split())
+        e_words = set(e_desc_norm.split())
+        filler = {"X", "AND", "THE", "OF", "FOR", "IN", "TO", "WITH", "FT", "INCH", "PCS", "PC"}
+        i_words = i_words - filler
+        e_words = e_words - filler
+        common = i_words & e_words
+        common = {w for w in common if len(w) > 2}
+        e_score += len(common) * 2
 
         if e_score > excel_score:
             excel_score = e_score
             best_excel = er
 
+    inv_category = classify_item_category(item.description or "", item.item_code or "")
+    # For lumber, require a length match (score >= 18) when no length is specified in the
+    # invoice line. This prevents an unspecific "2x4 SYP#2" invoice line from dumping all
+    # its delivered quantity onto the first 2x4 SYP#2 row regardless of length.
+    item_t, item_w, item_l = get_dimensions(item.description or "", item.dimensions or "")
+    lumber_no_length = (inv_category == "lumber" and (item_l is None or item_l == 0))
+    threshold = 10 if inv_category in ("each", "invoice") else (18 if lumber_no_length else 15)
+    if mapped_mat:
+        threshold = 0
+
+    matched = (best is not None) and (best_score >= threshold)
+
+    qty_multiplier = 1.0
+    if matched and best:
+        if best.length and item_l and best.length != item_l:
+            qty_multiplier = item_l / best.length
+
     return {
-        "matched": best is not None and best_score >= 4,
+        "matched": matched,
         "score": max(best_score, excel_score),
-        "material_id": best.id if best else None,
-        "material_type": best.material_type if best else None,
-        "material_dimensions": f"{best.thickness or ''}x{best.width or ''}x{best.length or ''}" if best else None,
+        "material_id": best.id if (best and best_score >= threshold) else None,
+        "material_type": best.material_type if (best and best_score >= threshold) else None,
+        "material_dimensions": f"{best.thickness or ''}x{best.width or ''}x{best.length or ''}" if (best and best_score >= threshold) else None,
         "excel_row": best_excel,
+        "qty_multiplier": qty_multiplier,
     }
 
 
 _excel_row_refs_cache = {}
 
-def _load_excel_row_refs(project_name: str) -> list:
+
+def _load_excel_row_refs(project_id: str, db: Optional[Session] = None) -> list:
     """
     Load lightweight row references from Client_Requirments_Doc.xlsx.
-    Returns list of {row, sheet, type, description} dicts.
+    Returns list of {row, sheet, type, description, ...} dicts.
     """
+    project_name = ""
+    if db is not None:
+        try:
+            project = db.query(Project).filter(Project.id == project_id).first()
+            if project:
+                project_name = project.name
+        except Exception:
+            pass
+    if not project_name:
+        project_name = project_id
     if project_name in _excel_row_refs_cache:
         return _excel_row_refs_cache[project_name]
     if not os.path.exists(LEGACY_EXCEL):
@@ -171,6 +271,7 @@ def _load_excel_row_refs(project_name: str) -> list:
         wb = openpyxl.load_workbook(LEGACY_EXCEL, data_only=True, read_only=True)
         name_upper = project_name.upper()
         sheet_name = None
+
         for sn in wb.sheetnames:
             su = sn.upper()
             if "COBIA" in name_upper and "COBIA" in su:
@@ -179,20 +280,88 @@ def _load_excel_row_refs(project_name: str) -> list:
             if "WILLOW" in name_upper and "WILLOW" in su:
                 sheet_name = sn
                 break
+
+        # If project name is unrecognized, search sheets case-insensitively
+        if not sheet_name:
+            for sn in wb.sheetnames:
+                su = sn.upper()
+                if name_upper in su or su in name_upper:
+                    sheet_name = sn
+                    break
+            # Fallback to the first sheet (ignoring "VPO's")
+            if not sheet_name:
+                valid_sheets = [sn for sn in wb.sheetnames if "VPO" not in sn.upper()]
+                if valid_sheets:
+                    sheet_name = valid_sheets[0]
+                elif wb.sheetnames:
+                    sheet_name = wb.sheetnames[0]
+
         if not sheet_name:
             wb.close()
             return []
+
         ws = wb[sheet_name]
+
+        # Scan header row (row 2, falling back to row 1)
+        header_row = next(ws.iter_rows(min_row=2, max_row=2, values_only=True), [])
+        header_row_num = 2
+        key_words = ["type", "material", "description", "thickness", "width", "length", "qty", "cost"]
+        row2_has_keywords = any(any(kw in str(val).lower() for kw in key_words) for val in header_row if val)
+        if not row2_has_keywords:
+            header_row = next(ws.iter_rows(min_row=1, max_row=1, values_only=True), [])
+            header_row_num = 1
+
+        # Default indices
+        type_col_idx = 1
+        mat_col_idx = 23
+        thick_col_idx = None
+        width_col_idx = None
+        length_col_idx = None
+        qty_col_idx = None
+        cost_col_idx = None
+
+        for idx, val in enumerate(header_row):
+            if not val:
+                continue
+            val_str = str(val).strip().lower()
+
+            if "material type" in val_str or "description" in val_str or val_str == "desc" or "material_type" in val_str:
+                mat_col_idx = idx + 1
+            elif val_str == "type" or "division" in val_str or "category" in val_str:
+                type_col_idx = idx + 1
+            elif "thickness" in val_str or val_str == "thick" or val_str == "t":
+                thick_col_idx = idx + 1
+            elif "width" in val_str or val_str == "w":
+                width_col_idx = idx + 1
+            elif "length" in val_str or val_str == "l" or val_str == "len":
+                length_col_idx = idx + 1
+            elif "qty" in val_str or "quantity" in val_str or val_str == "q":
+                qty_col_idx = idx + 1
+            elif "cost" in val_str or "price" in val_str or "rate" in val_str:
+                cost_col_idx = idx + 1
+
         rows = []
-        for row_num in range(3, 200):
-            type_val = ws.cell(row=row_num, column=1).value
-            mat_val = ws.cell(row=row_num, column=23).value
+        for row_num in range(header_row_num + 1, 200):
+            type_val = ws.cell(row=row_num, column=type_col_idx).value
+            mat_val = ws.cell(row=row_num, column=mat_col_idx).value
+
+            thick_val = ws.cell(row=row_num, column=thick_col_idx).value if thick_col_idx else None
+            width_val = ws.cell(row=row_num, column=width_col_idx).value if width_col_idx else None
+            length_val = ws.cell(row=row_num, column=length_col_idx).value if length_col_idx else None
+            qty_val = ws.cell(row=row_num, column=qty_col_idx).value if qty_col_idx else None
+            cost_val = ws.cell(row=row_num, column=cost_col_idx).value if cost_col_idx else None
+
             if type_val and str(type_val).strip():
                 rows.append({
                     "row": row_num,
                     "sheet": sheet_name,
                     "type": str(type_val).strip(),
                     "description": str(mat_val).strip() if mat_val else str(type_val).strip(),
+                    "thickness": thick_val,
+                    "width": width_val,
+                    "length": length_val,
+                    "qty": qty_val,
+                    "cost": cost_val,
                 })
         wb.close()
         _excel_row_refs_cache[project_name] = rows
@@ -252,7 +421,6 @@ async def preview_upload(
     """
     Step 1.5: Preview what will change if this document is confirmed.
     Returns a rich diff mapped to Client_Requirments_Doc.xlsx rows.
-    The user must review this before calling /confirm.
     """
     safe_name = os.path.basename(file.filename)
     filepath = os.path.join(UPLOAD_DIR, safe_name)
@@ -260,16 +428,15 @@ async def preview_upload(
         shutil.copyfileobj(file.file, f)
 
     if project_id.startswith("demo-"):
-        project = Project(id=0, name="Demo Project", organization_id=current_user.organization_id)
+        project = Project(id="demo-0", name="Demo Project", organization_id=current_user.organization_id)
         materials = []
     else:
-        proj_id_int = int(project_id)
         project = db.query(Project).filter(
-            Project.id == proj_id_int,
+            Project.id == project_id,
             Project.organization_id == current_user.organization_id
         ).first()
-        materials = db.query(Material).filter(Material.project_id == proj_id_int).all()
-        
+        materials = db.query(Material).filter(Material.project_id == project_id).all()
+
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -278,16 +445,21 @@ async def preview_upload(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to parse PDF: {str(e)}")
 
-    excel_rows = _load_excel_row_refs(project.name)
+    excel_rows = _load_excel_row_refs(project_id, db)
 
     preview_items = []
     for item in doc_data.line_items:
-        match = _match_line_to_material(item, materials, excel_rows)
+        match = _match_line_to_material(item, materials, excel_rows, db=db, project_id=project_id)
 
         if doc_type == "PO":
-            change_type = "ADD"
-            change_label = "Will be added to project"
-            change_color = "green"
+            if match["matched"]:
+                change_type = "PO_UPDATE"
+                change_label = "Update existing requirement"
+                change_color = "blue"
+            else:
+                change_type = "ADD"
+                change_label = "Will be added to project"
+                change_color = "green"
         elif doc_type == "INV":
             if match["matched"]:
                 change_type = "INVOICE"
@@ -391,12 +563,11 @@ async def confirm_upload(
         shutil.copyfileobj(file.file, f)
 
     if project_id.startswith("demo-"):
-        # Demo account bypass: just return success without DB writes
         try:
             doc_data = parse_pdf_document(filepath, doc_type)
         except Exception:
             doc_data = None
-            
+
         return {
             "message": "Demo Document processed successfully (No DB changes)",
             "document_id": 999,
@@ -404,8 +575,7 @@ async def confirm_upload(
             "line_items_parsed": len(doc_data.line_items) if doc_data else 0,
         }
 
-    proj_id_int = int(project_id)
-    project = db.query(Project).filter(Project.id == proj_id_int, Project.organization_id == current_user.organization_id).first()
+    project = db.query(Project).filter(Project.id == project_id, Project.organization_id == current_user.organization_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -416,7 +586,7 @@ async def confirm_upload(
 
     if doc_type == "INV" and doc_data.number:
         existing = db.query(Document).filter(
-            Document.project_id == proj_id_int,
+            Document.project_id == project_id,
             Document.doc_number == doc_data.number,
         ).first()
         if existing:
@@ -427,7 +597,7 @@ async def confirm_upload(
 
     try:
         doc = Document(
-            project_id=proj_id_int,
+            project_id=project_id,
             doc_type=doc_type,
             filename=safe_name,
             doc_number=doc_data.number,
@@ -437,22 +607,41 @@ async def confirm_upload(
         db.flush()
 
         if doc_type == "CO":
-            _save_co_adjustments(db, proj_id_int, doc_data, doc.id)
+            _save_co_adjustments(db, project_id, doc_data, doc.id)
 
-        if doc_type == "PO":
+        elif doc_type == "PO":
             from ..services.calculator import compute_material_totals
-            from ..services.excel_generator import classify_item_category
+            materials_list = db.query(Material).filter(Material.project_id == project_id).all()
+            excel_rows = _load_excel_row_refs(project_id, db)
             for item in doc_data.line_items:
-                category = classify_item_category(item.description or "", item.item_code or "")
-                t, w, l = None, None, None
-                if item.dimensions:
-                    dm = re.search(r"(\d+)[Xx](\d+)[Xx](\d+)", item.dimensions.strip())
-                    if dm:
-                        t = float(dm.group(1))
-                        w = float(dm.group(2))
-                        l = float(dm.group(3))
+                match_res = _match_line_to_material(item, materials_list, excel_rows, db=db, project_id=project_id)
+                if match_res["matched"] and match_res["material_id"]:
+                    mat = db.query(Material).filter(Material.id == match_res["material_id"]).first()
+                    if mat:
+                        mat.qty = (mat.qty or 0) + item.quantity
+                        mat.po_co_qty = (mat.qty or 0) + (mat.co_qty or 0)
+                        totals = compute_material_totals(mat, project.tax_rate)
+                        mat.lf_pcs = totals.get("lf_pcs", 0.0)
+                        mat.bf_sf = totals.get("bf_sf", 0.0)
+                        mat.total_cost = totals.get("total_cost", 0.0)
+                        mat.total_cost_tax = totals.get("total_cost_tax", 0.0)
+                        continue
+
+                # Use item_code directly if it's a known PO category — avoids misclassification
+                KNOWN_PO_TYPES = {"LVL": "lvl", "LUMBER": "lumber", "PANELS": "panels", "EACH": "each"}
+                if item.item_code.upper() in KNOWN_PO_TYPES:
+                    category = KNOWN_PO_TYPES[item.item_code.upper()]
+                else:
+                    category = classify_item_category(item.description or "", item.item_code or "")
+                mat_desc = item.description
+                if match_res.get("matched") and match_res.get("excel_row"):
+                    excel_row = match_res["excel_row"]
+                    if excel_row.get("type"):
+                        category = excel_row["type"]
+
+                t, w, l = get_dimensions(item.description or "", item.dimensions or "")
                 mat = Material(
-                    project_id=proj_id_int,
+                    project_id=project_id,
                     type=category,
                     qty=item.quantity,
                     co_qty=0.0,
@@ -460,7 +649,7 @@ async def confirm_upload(
                     thickness=t,
                     width=w,
                     length=l,
-                    material_type=item.description,
+                    material_type=mat_desc,
                     cost_mbf=item.unit_price,
                 )
                 totals = compute_material_totals(mat, project.tax_rate)
@@ -470,43 +659,46 @@ async def confirm_upload(
                 mat.total_cost_tax = totals.get("total_cost_tax", 0.0)
                 db.add(mat)
 
-        if doc_type == "INV":
+        elif doc_type == "INV":
+            materials = db.query(Material).filter(Material.project_id == project_id).all()
+            excel_rows = _load_excel_row_refs(project_id, db)
             for item in doc_data.line_items:
-                mapping = db.query(ItemMapping).filter(
-                    ItemMapping.invoice_description == item.description,
-                    ItemMapping.project_id == proj_id_int
-                ).first()
-                matched_material_id = None
-                if mapping:
-                    matched_material_id = mapping.material_id
-                else:
-                    materials = db.query(Material).filter(Material.project_id == proj_id_int).all()
-                    excel_rows = _load_excel_row_refs(project.name)
-                    match_res = _match_line_to_material(item, materials, excel_rows)
-                    if match_res["matched"]:
-                        matched_material_id = match_res["material_id"]
-                if matched_material_id is not None:
+                match_res = _match_line_to_material(item, materials, excel_rows, db=db, project_id=project_id)
+                if match_res["matched"] and match_res["material_id"]:
+                    matched_material_id = match_res["material_id"]
                     deliv = Delivery(
                         material_id=matched_material_id,
                         document_id=doc.id,
                         invoice_number=doc_data.number,
                         ship_date=doc_data.date,
                         quantity=item.quantity,
-                        qty_multiplier=1.0,
+                        qty_multiplier=match_res.get("qty_multiplier", 1.0),
                         uom=item.uom,
                     )
                     db.add(deliv)
 
+                    # Update Material's invoice_refs by appending invoice number
+                    mat = db.query(Material).filter(Material.id == matched_material_id).first()
+                    if mat and doc_data.number:
+                        import re as re_inv
+                        current_refs = re_inv.split(r'[,\n]+', mat.invoice_refs or "")
+                        existing_refs = [r.strip() for r in current_refs if r.strip()]
+                        if doc_data.number not in existing_refs:
+                            existing_refs.append(doc_data.number)
+                            mat.invoice_refs = ", ".join(existing_refs)
+
         _log_activity(
-            db, proj_id_int,
+            db, project_id,
             action=f"Document Processed: {doc_type}",
             detail=f"{safe_name} | Doc# {doc_data.number} | {len(doc_data.line_items)} line items",
         )
         db.commit()
         db.refresh(doc)
-        
+
     except Exception as e:
         db.rollback()
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Database transaction failed: {str(e)}")
 
     return {

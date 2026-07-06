@@ -122,59 +122,66 @@ export default function UploadPreviewModal({ preview, onConfirm, onDiscard, conf
             <table className="upm-table">
               <thead>
                 <tr>
-                  <th>Change</th>
-                  <th>Item / Description</th>
-                  <th>Qty</th>
-                  <th>Unit Price</th>
+                  <th>Status</th>
+                  <th>Material</th>
                   <th>Amount</th>
-                  <th>Matched Excel Row</th>
+                  <th>T</th>
+                  <th>W</th>
+                  <th>Length</th>
+                  <th>Material Type</th>
+                  <th>L/F-Pcs.</th>
+                  <th>B/F-S/F</th>
+                  <th>Cost</th>
+                  <th>Total</th>
                 </tr>
               </thead>
               <tbody>
                 {preview_items.map((item, idx) => {
                   const cfg = TYPE_CONFIG[item.change_type] || TYPE_CONFIG.UNKNOWN;
                   const li = item.line_item;
+                  
+                  // Parse dimensions
+                  const dims = (li.dimensions || '').split(/[xX]/).map(d => d.trim());
+                  const t = dims[0] || '';
+                  const w = dims[1] || '';
+                  const l = dims[2] || '';
+                  
                   return (
-                    <tr key={idx} className="upm-row" style={{ '--row-color': cfg.color }}>
-                      <td>
-                        <span className="upm-change-badge" style={{
-                          background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`
-                        }}>
-                          {cfg.icon}
-                          {item.change_label}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="upm-desc">
-                          {li.item_code && <strong>{li.item_code}</strong>}
-                          {li.description && <span>{li.description}</span>}
-                          {li.dimensions && <span className="upm-dim">{li.dimensions}</span>}
-                          {li.footage > 0 && <span className="upm-footage">{li.footage} {li.footage_uom || 'LF'}</span>}
-                        </div>
-                      </td>
-                      <td>
-                        <span style={{ color: item.change_type === 'CO_REMOVE' ? '#EF4444' : '#e4e4e7' }}>
-                          {item.change_type === 'CO_ADD' && '+'}
-                          {li.quantity?.toLocaleString() || 0} {li.uom}
-                        </span>
-                      </td>
-                      <td style={{ color: '#a1a1aa' }}>
-                        {li.unit_price > 0 ? `$${li.unit_price.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : '—'}
-                      </td>
-                      <td style={{ color: cfg.color, fontWeight: 600 }}>
-                        {li.amount > 0 ? `$${li.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : '—'}
-                      </td>
-                      <td>
-                        {item.excel_row_ref ? (
-                          <span className="upm-excel-ref">
-                            <ArrowRight size={11} />
-                            {item.excel_row_ref}
+                    <React.Fragment key={idx}>
+                      <tr className="upm-row" style={{ '--row-color': cfg.color }}>
+                        <td>
+                          <span className="upm-change-badge" style={{
+                            background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`
+                          }}>
+                            {cfg.icon} {item.change_label}
                           </span>
-                        ) : (
-                          <span style={{ color: '#3f3f46', fontSize: 12 }}>—</span>
-                        )}
-                      </td>
-                    </tr>
+                        </td>
+                        <td style={{ fontWeight: 600 }}>{li.item_code || '—'}</td>
+                        <td>{li.quantity?.toLocaleString() || 0}</td>
+                        <td>{t}</td>
+                        <td>{w}</td>
+                        <td>{l}</td>
+                        <td>{li.description}</td>
+                        <td>{li.footage > 0 ? `${li.footage} ${li.footage_uom || 'LF'}` : '—'}</td>
+                        <td>—</td>
+                        <td style={{ color: '#a1a1aa' }}>
+                          {li.unit_price > 0 ? `$${li.unit_price.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : '—'}
+                        </td>
+                        <td style={{ color: cfg.color, fontWeight: 600 }}>
+                          {li.amount > 0 ? `$${li.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : '—'}
+                        </td>
+                      </tr>
+                      {item.excel_row_ref && (
+                        <tr className="upm-row-sub">
+                          <td colSpan="11" style={{ padding: '4px 16px', background: 'rgba(0,0,0,0.2)', fontSize: '12px' }}>
+                            <span className="upm-excel-ref" style={{ color: '#a1a1aa', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <ArrowRight size={12} color={cfg.color} />
+                              Mapped to: <strong>{item.excel_row_ref}</strong>
+                            </span>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   );
                 })}
               </tbody>

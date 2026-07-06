@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { usePlatform } from '../context/PlatformContext';
 import { useAuth } from '../context/AuthContext';
-import { Plus, FolderOpen, Building2, Calendar, FileSpreadsheet, LogOut } from 'lucide-react';
+import { Plus, FolderOpen, Building2, Calendar, FileSpreadsheet, LogOut, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import './ProjectDashboard.css';
 
 export default function ProjectDashboard() {
   const { user, organization, logout } = useAuth();
-  const { projects, switchProject, createProject } = usePlatform();
+  const { projects, switchProject, createProject, deleteProject } = usePlatform();
   const [showCreate, setShowCreate] = useState(false);
   const [formData, setFormData] = useState({ name: '', job_number: '', tax_rate: '1.06', client: 'KNCC Development Corp' });
   const [loading, setLoading] = useState(false);
@@ -77,9 +77,26 @@ export default function ProjectDashboard() {
               <div className="dash-card-icon">
                 <Building2 size={24} color="#3B82F6" />
               </div>
-              <span className={`dash-status ${proj.status === 'Completed' ? 'done' : 'active'}`}>
-                {proj.status || 'Active'}
-              </span>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <span className={`dash-status ${proj.status === 'Completed' ? 'done' : 'active'}`}>
+                  {proj.status || 'Active'}
+                </span>
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (window.confirm(`Are you sure you want to delete ${proj.name}? All data will be lost.`)) {
+                      deleteProject(proj.id).catch(err => alert(err.message));
+                    }
+                  }}
+                  style={{
+                    background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '4px'
+                  }}
+                  title="Delete Project"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
             </div>
             <h2 className="dash-card-title">{proj.name}</h2>
             <p className="dash-card-client">{proj.client || 'KNCC Organization'}</p>

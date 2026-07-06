@@ -150,7 +150,7 @@ def get_row2_headers(is_cobia: bool, co_labels: List[str]) -> Dict[int, str]:
     headers = {}
     cols = COBIA_COLS if is_cobia else WILLOW_COLS
     
-    headers[col_to_num(cols["type"])] = "Type"
+    headers[col_to_num(cols["type"])] = ""
     headers[col_to_num(cols["qty"])] = "PO Qty"
     
     co_start = 3
@@ -238,6 +238,21 @@ def format_data_row(ws, row: int, cols: dict, is_cobia: bool):
         cell.font = regular_font
         cell.border = thin_border
         
+        if key == "type":
+            type_val = str(cell.value or "").lower()
+            if "lumber" in type_val:
+                cell.fill = PatternFill(start_color="C6E0B4", end_color="C6E0B4", fill_type="solid")
+            elif "lvl" in type_val:
+                cell.fill = PatternFill(start_color="B4C6E7", end_color="B4C6E7", fill_type="solid")
+            elif "each" in type_val:
+                cell.fill = PatternFill(start_color="F8CBAD", end_color="F8CBAD", fill_type="solid")
+            elif "panels" in type_val:
+                cell.fill = PatternFill(start_color="FFE699", end_color="FFE699", fill_type="solid")
+            else:
+                cell.fill = PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid")
+            cell.font = Font(name=font_name, size=10, bold=True)
+
+        
         if key in left_cols:
             cell.alignment = align_left
         elif key in center_cols:
@@ -301,36 +316,60 @@ def write_row_formulas_from_scratch(ws, row: int, cols: dict, is_cobia: bool, so
     row_type_val = ws.cell(row=row, column=col_to_num(type_let)).value
     rt = str(row_type_val).strip().lower() if row_type_val else "lumber"
     
-    # Formula 1: total_cost
+    # Formula 1: total_cost — use PO/CO Qty (not raw PO Qty)
     if rt == "lumber":
-        ws.cell(row=row, column=col_to_num(tc_let), value=f"=({qty_let}{r}*{t_let}{r}*{w_let}{r}*{l_let}{r}/12)*{cost_let}{r}/1000")
+        ws.cell(row=row, column=col_to_num(tc_let), value=f"=({po_co_qty_let}{r}*{t_let}{r}*{w_let}{r}*{l_let}{r}/12)*{cost_let}{r}/1000")
     elif rt == "panels":
-        ws.cell(row=row, column=col_to_num(tc_let), value=f"=({qty_let}{r}*{t_let}{r}*{w_let}{r})*{cost_let}{r}/1000")
+        ws.cell(row=row, column=col_to_num(tc_let), value=f"=({po_co_qty_let}{r}*{t_let}{r}*{w_let}{r})*{cost_let}{r}/1000")
     elif rt == "lvl":
-        ws.cell(row=row, column=col_to_num(tc_let), value=f"={qty_let}{r}*{l_let}{r}*{cost_let}{r}")
+        ws.cell(row=row, column=col_to_num(tc_let), value=f"={po_co_qty_let}{r}*{l_let}{r}*{cost_let}{r}")
     else:
-        ws.cell(row=row, column=col_to_num(tc_let), value=f"={qty_let}{r}*{cost_let}{r}")
-        
-    # Formula 2: total_cost_tax
-    ws.cell(row=row, column=col_to_num(tc_tax_let), value=f"={tc_let}{r}*{tax_rate}")
+        ws.cell(row=row, column=col_to_num(tc_let), value=f"={po_co_qty_let}{r}*{cost_let}{r}")
+
+    # Formula 2: total_cost_tax — normalize rate to multiplier
+    mult = tax_rate if tax_rate > 1 else (1 + tax_rate)
+    ws.cell(row=row, column=col_to_num(tc_tax_let), value=f"={tc_let}{r}*{mult}")
     
     # Formula 3: co_qty
     ws.cell(row=row, column=col_to_num(co_qty_let), value=f"=SUM(C{r}:{co_end_letter}{r})")
     
     # Formula 4: po_co_qty
     ws.cell(row=row, column=col_to_num(po_co_qty_let), value=f"={qty_let}{r}+{co_qty_let}{r}")
-    
-    # Formula 5: total_delivered
-    if sorted_dates:
-        del_start_letter = get_column_letter(del_start_idx)
-        del_end_letter = get_column_letter(del_start_idx + len(sorted_dates) - 1)
-        ws.cell(row=row, column=col_to_num(td_let), value=f"=SUM({del_start_letter}{r}:{del_end_letter}{r})")
-    else:
-        del_start_letter = get_column_letter(del_start_idx)
-        ws.cell(row=row, column=col_to_num(td_let), value=f"=SUM({del_start_letter}{r}:{del_start_letter}{r})")
+
+    # Formula 4a: lf_pcs — live formula using po_co_qty
+    lf_col = col_to_num(L("lf_pcs"))
+    if rt == "lumber":
+        ws.cell(row=row, column=lf_col, value=f"={po_co_qty_let}{r}*{l_let}{r}")
+    elif rt == "lvl":
+        ws.cell(row=row, column=lf_col, value=f"={po_co_qty_let}{r}*{l_let}{r}")
+    elif rt in ("each", "invoice"):
+        ws.cell(row=row, column=lf_col, value=f"={po_co_qty_let}{r}")
+    else:  # panels
+        ws.cell(row=row, column=lf_col, value=0)
+
+    # Formula 4b: bf_sf — live formula using po_co_qty
+    bf_col = col_to_num(L("bf_sf"))
+    if rt == "lumber":
+        ws.cell(row=row, column=bf_col, value=f"={po_co_qty_let}{r}*{t_let}{r}*{w_let}{r}*{l_let}{r}/12")
+    elif rt == "panels":
+        ws.cell(row=row, column=bf_col, value=f"={po_co_qty_let}{r}*{t_let}{r}*{w_let}{r}")
+    else:  # lvl, each — no bf_sf
+        ws.cell(row=row, column=bf_col, value=0)
+
+    # Formula 5: total_delivered — SUM over the FULL delivery zone (not just current date count)
+    # This ensures future deliveries added to any column in the zone are automatically included.
+    del_start_letter = get_column_letter(del_start_idx)
+    # del_max_col = total_del_idx - 1, but we compute it from the layout
+    # The total_delivered column sits right after the delivery zone, so zone end = total_delivered - 1
+    total_del_num = col_to_num(cols["total_delivered"])
+    del_end_full_letter = get_column_letter(total_del_num - 1)
+    ws.cell(row=row, column=col_to_num(td_let), value=f"=SUM({del_start_letter}{r}:{del_end_full_letter}{r})")
         
-    # Formula 6: delivered_lf
-    ws.cell(row=row, column=col_to_num(dlf_let), value=f"={td_let}{r}*{l_let}{r}")
+    # Formula 6: delivered_lf — only lumber and lvl have LF; panels/each = 0
+    if rt in ("lumber", "lvl"):
+        ws.cell(row=row, column=col_to_num(dlf_let), value=f"={td_let}{r}*{l_let}{r}")
+    else:
+        ws.cell(row=row, column=col_to_num(dlf_let), value=0)
     
     # Formula 7: delivered_bf_sf
     if rt == "lumber":
@@ -351,10 +390,11 @@ def write_row_formulas_from_scratch(ws, row: int, cols: dict, is_cobia: bool, so
         ws.cell(row=row, column=col_to_num(dc_let), value=f"={td_let}{r}*{cost_let}{r}")
         
     # Formula 9: delivered_cost_tax
-    ws.cell(row=row, column=col_to_num(dc_tax_let), value=f"={dc_let}{r}*{tax_rate}")
-    
-    # Formula 10: pct_delivery
-    ws.cell(row=row, column=col_to_num(pdel_let), value=f"=IFERROR({dc_let}{r}/{tc_let}{r},0)")
+    mult = tax_rate if tax_rate > 1 else (1 + tax_rate)
+    ws.cell(row=row, column=col_to_num(dc_tax_let), value=f"={dc_let}{r}*{mult}")
+
+    # Formula 10: pct_delivery = delivered pieces / po_co_qty (qty-based, not cost-based)
+    ws.cell(row=row, column=col_to_num(pdel_let), value=f"=IFERROR({td_let}{r}/{po_co_qty_let}{r},0)")
     
     # Formula 11: inv_pcs
     ws.cell(row=row, column=col_to_num(ip_let), value=f"=IF({ib_let}{r}<>\"\",{ib_let}{r}*{pb_let}{r},0)")
@@ -380,7 +420,8 @@ def write_row_formulas_from_scratch(ws, row: int, cols: dict, is_cobia: bool, so
     ws.cell(row=row, column=col_to_num(ic_let), value=f"=IFERROR({ibf_let}{r}*{cost_let}{r}/1000,0)")
     
     # Formula 17: issues_cost_tax
-    ws.cell(row=row, column=col_to_num(ic_tax_let), value=f"={ic_let}{r}*{tax_rate}")
+    mult = tax_rate if tax_rate > 1 else (1 + tax_rate)
+    ws.cell(row=row, column=col_to_num(ic_tax_let), value=f"={ic_let}{r}*{mult}")
 
 
 def write_section_spacers(ws, is_cobia: bool):
@@ -533,7 +574,11 @@ def write_row_formulas(ws, row: int, cols: dict, del_start_letter: str, del_end_
     rt = str(row_type_val).strip().lower() if row_type_val else ""
 
     ws.cell(row=row, column=col_to_num(cols["total_delivered"]), value=f"=SUM({del_start_letter}{r}:{del_end_letter}{r})")
-    ws.cell(row=row, column=col_to_num(cols["delivered_lf"]), value=f"={td}{r}*{llen}{r}")
+    # delivered_lf only applies to lumber and lvl; panels/each stay 0
+    if rt in ("lumber", "lvl"):
+        ws.cell(row=row, column=col_to_num(cols["delivered_lf"]), value=f"={td}{r}*{llen}{r}")
+    else:
+        ws.cell(row=row, column=col_to_num(cols["delivered_lf"]), value=0)
 
     if rt == "lumber":
         ws.cell(row=row, column=col_to_num(cols["delivered_bf_sf"]), value=f"={td}{r}*{t}{r}*{w}{r}*{llen}{r}/12")
@@ -551,8 +596,11 @@ def write_row_formulas(ws, row: int, cols: dict, del_start_letter: str, del_end_
     else:
         ws.cell(row=row, column=col_to_num(cols["delivered_cost"]), value=f"={td}{r}*{cost}{r}")
 
-    ws.cell(row=row, column=col_to_num(cols["delivered_cost_tax"]), value=f"={dc}{r}*{tax_rate}")
-    ws.cell(row=row, column=col_to_num(cols["pct_delivery"]), value=f"=IFERROR({dc}{r}/{tc}{r},0)")
+    mult = tax_rate if tax_rate > 1 else (1 + tax_rate)
+    ws.cell(row=row, column=col_to_num(cols["delivered_cost_tax"]), value=f"={dc}{r}*{mult}")
+    # pct_delivery = delivered pieces / po_co_qty (not cost/cost)
+    po_co_col = get_column_letter(col_to_num(cols["po_co_qty"]))
+    ws.cell(row=row, column=col_to_num(cols["pct_delivery"]), value=f"=IFERROR({td}{r}/{po_co_col}{r},0)")
     ws.cell(row=row, column=col_to_num(cols["inv_pcs"]), value=f"=IF({ib}{r}<>\"\",{ib}{r}*{pb}{r},0)")
     ws.cell(row=row, column=col_to_num(cols["issues"]), value=f"={td}{r}-{ip}{r}")
     ws.cell(row=row, column=col_to_num(cols["issues_lf"]), value=f"={iss}{r}*{llen}{r}")
@@ -644,7 +692,10 @@ def sync_excel_for_project(db: Session, project: Project) -> str:
         co_start_idx = 3
         co_end_idx = 41
     else:
-        sheet_name = SHEET_WILLOW
+        if "WILLOW" in name_upper:
+            sheet_name = SHEET_WILLOW
+        else:
+            sheet_name = project.name
         cols = WILLOW_COLS
         valid_rows = list(range(3, 79))
         co_start_idx = 3
@@ -671,19 +722,26 @@ def sync_excel_for_project(db: Session, project: Project) -> str:
     for d in deliveries:
         if d.ship_date:
             dt = d.ship_date
-            if hasattr(dt, 'date'):
+            # Handle both datetime and date objects safely
+            try:
                 ship_dates.add(datetime(dt.year, dt.month, dt.day))
+            except Exception:
+                pass
     sorted_dates = sorted(list(ship_dates))
     
     del_start_idx = col_to_num(cols["delivery_start"])
     total_del_idx = col_to_num(cols["total_delivered"])
-    del_end_idx = total_del_idx - 1
+    # Leave one gap: delivery columns go from del_start_idx to total_del_idx - 1
+    del_max_col   = total_del_idx - 1
     
     date_col_map = {}
     for i, dt in enumerate(sorted_dates):
         col_num = del_start_idx + i
-        if col_num <= del_end_idx:
+        if col_num <= del_max_col:
             date_col_map[dt] = col_num
+    
+    # Fallback column for deliveries with no ship_date
+    fallback_del_col = del_start_idx
             
     # Create workbook
     wb = openpyxl.Workbook()
@@ -714,7 +772,12 @@ def sync_excel_for_project(db: Session, project: Project) -> str:
             
         col_val = lambda col_name, val: ws_project.cell(row=r, column=col_to_num(cols[col_name]), value=val)
         
-        col_val("type", mat.type)
+        # Format type specifically
+        fmt_type = ""
+        if mat.type:
+            fmt_type = "LVL" if mat.type.lower() == "lvl" else mat.type.capitalize()
+            
+        col_val("type", fmt_type)
         col_val("qty", mat.qty)
         col_val("thickness", mat.thickness)
         if mat.thickness is not None and mat.width is not None:
@@ -724,8 +787,8 @@ def sync_excel_for_project(db: Session, project: Project) -> str:
         col_val("width", mat.width)
         col_val("length", mat.length)
         col_val("material_type", mat.material_type)
-        col_val("lf_pcs", mat.lf_pcs)
-        col_val("bf_sf", mat.bf_sf)
+        # lf_pcs and bf_sf are written as Excel formulas below via write_row_formulas_from_scratch
+        # so we do NOT write static DB values here (they may be stale).
         col_val("cost_mbf", mat.cost_mbf)
         col_val("invoice_num", mat.invoice_refs)
         
@@ -740,19 +803,26 @@ def sync_excel_for_project(db: Session, project: Project) -> str:
                 c = co_col_map[adj.co_number]
                 ws_project.cell(row=r, column=c, value=adj.qty_change or 0.0)
                 
-        # Zero out delivery columns
-        for c in range(del_start_idx, del_end_idx + 1):
-            ws_project.cell(row=r, column=c, value=0.0)
+        # Zero out delivery columns (full delivery zone)
+        for c_zero in range(del_start_idx, del_max_col + 1):
+            ws_project.cell(row=r, column=c_zero, value=0.0)
             
-        # Write deliveries
+        # Write deliveries into the correct date column
         mat_delivs = [d for d in deliveries if d.material_id == mat.id]
         for d in mat_delivs:
+            target_col = None
             if d.ship_date:
-                dt_norm = datetime(d.ship_date.year, d.ship_date.month, d.ship_date.day)
-                if dt_norm in date_col_map:
-                    c = date_col_map[dt_norm]
-                    curr_val = ws_project.cell(row=r, column=c).value or 0.0
-                    ws_project.cell(row=r, column=c, value=curr_val + (d.quantity or 0) * (d.qty_multiplier or 1.0))
+                try:
+                    dt_norm = datetime(d.ship_date.year, d.ship_date.month, d.ship_date.day)
+                    target_col = date_col_map.get(dt_norm)
+                except Exception:
+                    pass
+            # If no date or date not mapped, credit to the fallback first column
+            if target_col is None:
+                target_col = fallback_del_col
+            curr_val = ws_project.cell(row=r, column=target_col).value or 0.0
+            ws_project.cell(row=r, column=target_col,
+                            value=curr_val + (d.quantity or 0) * (d.qty_multiplier or 1.0))
                     
         # Inventory
         inv = db.query(Inventory).filter(Inventory.material_id == mat.id).first()

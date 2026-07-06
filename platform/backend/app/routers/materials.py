@@ -90,7 +90,7 @@ def _enrich(mat: Material, project: Project, deliveries: list, inv: Inventory) -
 
 
 @router.get("/{project_id}")
-def get_materials(project_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_materials(project_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     project = db.query(Project).filter(Project.id == project_id, Project.organization_id == current_user.organization_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -105,7 +105,7 @@ def get_materials(project_id: int, current_user: User = Depends(get_current_user
 
 
 @router.get("/{project_id}/summary")
-def get_summary(project_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_summary(project_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """KPI summary for dashboard cards."""
     project = db.query(Project).filter(Project.id == project_id, Project.organization_id == current_user.organization_id).first()
     if not project:
@@ -147,7 +147,7 @@ def get_summary(project_id: int, current_user: User = Depends(get_current_user),
 
 
 @router.patch("/{project_id}/{material_id}")
-def update_material(project_id: int, material_id: int, updates: MaterialUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def update_material(project_id: str, material_id: str, updates: MaterialUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     project = db.query(Project).filter(Project.id == project_id, Project.organization_id == current_user.organization_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")

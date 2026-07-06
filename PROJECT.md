@@ -19,6 +19,11 @@ The application is a React + FastAPI monorepo that processes PO, CO, and Invoice
 | M7 | Dynamic Excel Generation from Scratch | Generate client_req_doc Excel file from scratch with openpyxl including all formulas. | M6 | DONE |
 | M8 | Interactive Row Change Confirmations | Prompt user in React UI for confirmation before applying row/material changes from COs. | M7 | DONE |
 | M9 | E2E Integration Verification & Audit | Run all integration tests and perform Forensic Auditor checks. | M8 | DONE |
+| M10 | Codebase Exploration | Investigate codebase structure and design solution for follow-up. | None | DONE |
+| M11 | Fix Data Persistence (R1) | Fix UUID types, routes, backend-frontend REST integration, invoice_refs. | M10 | IN_PROGRESS |
+| M12 | Intelligent Local Mapping (R2) | Implement header discovery, regex/fuzzy matching, CO row adjustment. | M11 | PLANNED |
+| M13 | Excel Export Generation (R3) | Stream openpyxl excel generation from frontend download button. | M12 | PLANNED |
+| M14 | Final Verification & Audit | Run E2E tests and Forensic Auditor checks on follow-up features. | M13 | PLANNED |
 
 ## Interface Contracts
 ### REST API ↔ Frontend

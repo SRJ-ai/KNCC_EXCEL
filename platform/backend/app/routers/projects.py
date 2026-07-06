@@ -36,7 +36,7 @@ def create_project(project: ProjectCreate, current_user: User = Depends(get_curr
 
 
 @router.get("/{project_id}", response_model=ProjectResponse)
-def get_project(project_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_project(project_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     p = db.query(Project).filter(Project.id == project_id, Project.organization_id == current_user.organization_id).first()
     if not p:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -44,10 +44,27 @@ def get_project(project_id: int, current_user: User = Depends(get_current_user),
 
 
 @router.delete("/{project_id}")
-def delete_project(project_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def delete_project(project_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     p = db.query(Project).filter(Project.id == project_id, Project.organization_id == current_user.organization_id).first()
     if not p:
         raise HTTPException(status_code=404, detail="Project not found")
+        
+    from ..models import Material, Delivery, COAdjustment, Inventory, ItemMapping, Activity, Document
+    
+    # Delete child data via material IDs
+    materials = db.query(Material).filter(Material.project_id == project_id).all()
+    mat_ids = [m.id for m in materials]
+    if mat_ids:
+        db.query(Delivery).filter(Delivery.material_id.in_(mat_ids)).delete(synchronize_session=False)
+        db.query(COAdjustment).filter(COAdjustment.material_id.in_(mat_ids)).delete(synchronize_session=False)
+        db.query(Inventory).filter(Inventory.material_id.in_(mat_ids)).delete(synchronize_session=False)
+        db.query(ItemMapping).filter(ItemMapping.material_id.in_(mat_ids)).delete(synchronize_session=False)
+        
+    db.query(ItemMapping).filter(ItemMapping.project_id == project_id).delete(synchronize_session=False)
+    db.query(Activity).filter(Activity.project_id == project_id).delete(synchronize_session=False)
+    db.query(Material).filter(Material.project_id == project_id).delete(synchronize_session=False)
+    db.query(Document).filter(Document.project_id == project_id).delete(synchronize_session=False)
+    
     db.delete(p)
     db.commit()
     return {"message": "Project deleted"}
@@ -55,7 +72,7 @@ def delete_project(project_id: int, current_user: User = Depends(get_current_use
 
 @router.post("/{project_id}/import-excel")
 async def import_excel(
-    project_id: int,
+    project_id: str,
     file: UploadFile = File(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),

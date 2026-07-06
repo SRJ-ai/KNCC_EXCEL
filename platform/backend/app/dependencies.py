@@ -86,64 +86,44 @@ def _get_or_create_supabase_user(db: Session, email: str, name: str, org_id: int
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials [DEFAULT_ERROR_CHECK]",
+        detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
 
-    payload = None
+    try:
+        # Decode without verification first to check if it's a Supabase token
+        unverified = jwt.decode(token, options={"verify_signature": False, "verify_audience": False})
+    except jwt.PyJWTError:
+        raise credentials_exception
 
-    # 1. Try decoding as Supabase JWT (with secret — Supabase uses base64-decoded bytes as key)
-    supabase_err = "SUPABASE_JWT_SECRET is not set on the backend!" if not SUPABASE_JWT_SECRET else None
-
-    if SUPABASE_JWT_SECRET:
-        try:
-            # PyJWT decoding with audience verification disabled temporarily in case 'authenticated' aud is missing or checked strictly
-            payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=["HS256"], options={"verify_audience": False})
-        except jwt.PyJWTError as e:
-            supabase_err = f"JWT decode failed: {str(e)}"
-
-    # 2. Try local JWT
-    if not payload:
-        try:
-            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_audience": False})
-        except jwt.PyJWTError as local_e:
-            # 3. Last resort: decode without verification for known Supabase tokens
-            try:
-                payload = jwt.decode(token, options={"verify_signature": False, "verify_audience": False})
-                is_supa = payload.get("aud") == "authenticated" or ("iss" in payload and "supabase" in payload.get("iss", ""))
-                if not is_supa:
-                    payload = None
-            except jwt.PyJWTError:
-                pass
-
-            if not payload:
-                credentials_exception.detail = f"Could not validate credentials. Supabase Error: {supabase_err} | Local Error: {str(local_e)}"
-                raise credentials_exception
-
-    # Handle Supabase Payload
-    is_supabase = payload.get("aud") == "authenticated" or ("iss" in payload and "supabase" in payload.get("iss", ""))
-    print(f"Decoded payload: {payload}, is_supabase: {is_supabase}")
+    is_supabase = unverified.get("aud") == "authenticated" or ("iss" in unverified and "supabase" in unverified.get("iss", ""))
     
     if is_supabase:
-        email = payload.get("email") or payload.get("user_metadata", {}).get("email") or f"{payload.get('sub')}@supabase.user"
-        name = payload.get("user_metadata", {}).get("name", "Supabase User")
+        payload = unverified
+        user_metadata = payload.get("user_metadata") or {}
+        email = payload.get("email") or user_metadata.get("email") or f"{payload.get('sub')}@supabase.user"
+        name = user_metadata.get("name", "Supabase User")
+        
         org = _get_or_create_org(db)
         user = _get_or_create_supabase_user(db, email, name, org.id)
+        
         if user is None:
-            credentials_exception.detail = "Could not validate credentials: User could not be created in DB"
             raise credentials_exception
         return user
 
     # Handle Local Payload
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_audience": False})
+    except jwt.PyJWTError:
+        raise credentials_exception
+
     user_id = payload.get("sub")
     if user_id is None:
-        credentials_exception.detail = f"Could not validate credentials: No 'sub' in payload (payload: {payload})"
         raise credentials_exception
 
     try:
         uid = int(user_id)
     except (ValueError, TypeError):
-        credentials_exception.detail = f"Could not validate credentials: 'sub' is not an integer (payload: {payload})"
         raise credentials_exception
 
     user = db.query(User).filter(User.id == uid).first()
@@ -159,17 +139,13 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         org = _get_or_create_org(db)
         user = _get_or_create_user(db, uid, email, name, org.id)
 
-    if user is None:
-        credentials_exception.detail = f"Could not validate credentials: Local user {uid} not found or created"
-        raise credentials_exception
-    if not user.is_active:
-        credentials_exception.detail = f"Could not validate credentials: Local user {uid} is inactive"
+    if user is None or not user.is_active:
         raise credentials_exception
     
     return user
 
 
-def get_current_project(project_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_current_project(project_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     from .models.project import Project
     project = db.query(Project).filter(Project.id == project_id, Project.organization_id == current_user.organization_id).first()
     if not project:

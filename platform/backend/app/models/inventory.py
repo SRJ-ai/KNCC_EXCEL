@@ -1,10 +1,11 @@
+import uuid
 from sqlalchemy import Column, Integer, String, Float, ForeignKey
 from ..database import Base
 
 class Inventory(Base):
     __tablename__ = "inventory"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     material_id = Column(Integer, ForeignKey("materials.id"), unique=True, index=True)
     
     bundles = Column(Float, nullable=True)

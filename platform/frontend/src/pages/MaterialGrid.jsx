@@ -56,15 +56,33 @@ export default function MaterialGrid() {
   const [filterType, setFilterType] = useState('All');
 
   const types = useMemo(() => {
-    const ts = new Set(materials.map(m => m.type || 'Unknown'));
+    const ts = new Set(materials.map(m => {
+      const t = m.type || 'Unknown';
+      if (t === 'lvl') return 'LVL';
+      return t.charAt(0).toUpperCase() + t.slice(1).toLowerCase();
+    }));
     return ['All', ...Array.from(ts)];
   }, [materials]);
 
-  const filteredMaterials = materials.filter(m => {
-    const matchesSearch = (m.material_type || '').toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesType = filterType === 'All' || (m.type || 'Unknown') === filterType;
-    return matchesSearch && matchesType;
-  });
+  const filteredMaterials = useMemo(() => {
+    let result = materials.map(m => {
+      let displayType = m.type || 'Unknown';
+      if (displayType === 'lvl') displayType = 'LVL';
+      else displayType = displayType.charAt(0).toUpperCase() + displayType.slice(1).toLowerCase();
+      return { ...m, displayType };
+    }).filter(m => {
+      const matchesSearch = (m.material_type || '').toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesType = filterType === 'All' || m.displayType === filterType;
+      return matchesSearch && matchesType;
+    });
+
+    const typeOrder = { 'Lumber': 1, 'Panels': 2, 'LVL': 3, 'Each': 4 };
+    return result.sort((a, b) => {
+      const aOrder = typeOrder[a.displayType] || 5;
+      const bOrder = typeOrder[b.displayType] || 5;
+      return aOrder - bOrder;
+    });
+  }, [materials, searchTerm, filterType]);
 
   const handleExport = () => {
     const dataToExport = filteredMaterials.map(m => {
@@ -157,15 +175,20 @@ export default function MaterialGrid() {
                 </tr>
               ))
             ) : (() => {
-              // First sort by type
-              const sorted = [...filteredMaterials].sort((a, b) => (a.type || '').localeCompare(b.type || ''));
+              // First sort by displayType
+              const sorted = [...filteredMaterials].sort((a, b) => {
+                const typeOrder = { 'Lumber': 1, 'Panels': 2, 'LVL': 3, 'Each': 4 };
+                const aOrder = typeOrder[a.displayType] || 5;
+                const bOrder = typeOrder[b.displayType] || 5;
+                return aOrder - bOrder;
+              });
               let currentType = null;
               const rows = [];
               let rowIdx = 3;
 
               sorted.forEach((item, idx) => {
-                if (item.type !== currentType) {
-                  currentType = item.type;
+                if (item.displayType !== currentType) {
+                  currentType = item.displayType;
                   // Insert category divider
                   rows.push(
                     <tr key={`group-${currentType}`} style={{ background: '#1c1c1e' }}>

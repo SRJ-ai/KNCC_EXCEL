@@ -3,6 +3,8 @@ KNCC Platform Configuration
 Supports local SQLite dev, Vercel serverless, and Render (Postgres).
 """
 import os
+from dotenv import load_dotenv
+load_dotenv(override=True)
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PLATFORM_DIR = os.path.dirname(BASE_DIR)
