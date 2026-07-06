@@ -120,7 +120,7 @@ export default function ActivityLog() {
     } finally {
       setLoading(false);
     }
-  }, [activeProject?.id, backendUrl]);
+  }, [activeProject, backendUrl]);
 
   // Initial load + 30s polling fallback
   useEffect(() => {
