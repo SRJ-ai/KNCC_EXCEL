@@ -14,6 +14,20 @@ function colName(n) {
 }
 
 export function generateClientRequirementsExcel(project, materials, pos, invoices, cos) {
+  // Sort materials by type: Lumber -> Panels -> LVL -> Each
+  const typeOrder = {
+    'Lumber': 1,
+    'Panels': 2,
+    'LVL': 3,
+    'Each': 4
+  };
+  
+  const sortedMaterials = [...materials].sort((a, b) => {
+    const aOrder = typeOrder[a.type] || 5;
+    const bOrder = typeOrder[b.type] || 5;
+    return aOrder - bOrder;
+  });
+
   // 1. Prepare dynamic columns
   // Format dates consistently
   const formatDate = (dateStr) => {
@@ -66,12 +80,12 @@ export function generateClientRequirementsExcel(project, materials, pos, invoice
   // Function to create an Excel formula object
   const createFormula = (formula) => ({ t: 'n', f: formula });
 
-  materials.forEach((mat, idx) => {
+  sortedMaterials.forEach((mat, idx) => {
     const r = idx + 2; // Excel row number (1-based, header is 1, data starts at 2)
     const row = new Array(headers.length).fill('');
 
-    row[getCol('Type')] = mat.description || mat.item_code || 'Material';
-    row[colIndex.qty] = Number(mat.quantity || 0);
+    row[getCol('Type')] = mat.type || 'Material';
+    row[colIndex.qty] = Number(mat.qty || 0);
 
     // CO Columns (leave blank for user entry, or map if we have material-level CO quantities)
     // For now, leaving blank since our DB doesn't map COs to specific materials tightly enough yet.
@@ -87,24 +101,56 @@ export function generateClientRequirementsExcel(project, materials, pos, invoice
     row[colIndex.poCoQty] = createFormula(`${colName(colIndex.qty)}${r}+${colName(colIndex.coQty)}${r}`);
 
     // Dimensions (Try to parse dimensions if available)
-    row[getCol('T')] = ''; 
-    row[getCol('x')] = '';
-    row[getCol('W')] = '';
-    row[getCol('Length')] = mat.footage || '';
-    row[getCol('Material Type')] = mat.item_code || '';
-    row[getCol('L/F-Pcs.')] = '';
-    row[getCol('B/F-S/F')] = '';
-    row[colIndex.unitPrice] = Number(mat.unit_price || 0);
+    row[getCol('T')] = mat.thickness || ''; 
+    row[getCol('x')] = mat.width ? 'X' : '';
+    row[getCol('W')] = mat.width || '';
+    row[getCol('Length')] = mat.length || '';
+    row[getCol('Material Type')] = mat.material_type || '';
+    const tCol = colName(getCol('T'));
+    const wCol = colName(getCol('W'));
+    const lCol = colName(getCol('Length'));
+    const qtyCol = colName(colIndex.poCoQty);
+    const costCol = colName(colIndex.unitPrice);
 
-    // Total Cost = (PO + CO Qty) * Unit Price
-    row[colIndex.totalCost] = createFormula(`${colName(colIndex.poCoQty)}${r}*${colName(colIndex.unitPrice)}${r}`);
+    // Calculate L/F-Pcs. formula
+    if (mat.type === 'lvl' || mat.type === 'lumber' || mat.type === 'LVL' || mat.type === 'Lumber') {
+      row[getCol('L/F-Pcs.')] = createFormula(`IF(${lCol}${r}="","",${qtyCol}${r}*${lCol}${r})`);
+    } else if (mat.type === 'each' || mat.type === 'Each' || mat.type === 'invoice' || mat.type === 'Invoice') {
+      row[getCol('L/F-Pcs.')] = createFormula(`${qtyCol}${r}`);
+    } else {
+      row[getCol('L/F-Pcs.')] = '';
+    }
+
+    // Calculate B/F-S/F formula
+    if (mat.type === 'lumber' || mat.type === 'Lumber') {
+      row[getCol('B/F-S/F')] = createFormula(`IF(OR(${tCol}${r}="",${wCol}${r}="",${lCol}${r}=""),"",(${qtyCol}${r}*${tCol}${r}*${wCol}${r}*${lCol}${r})/12)`);
+    } else if (mat.type === 'panels' || mat.type === 'Panels') {
+      row[getCol('B/F-S/F')] = createFormula(`IF(OR(${tCol}${r}="",${wCol}${r}=""),"",${qtyCol}${r}*${tCol}${r}*${wCol}${r})`);
+    } else {
+      row[getCol('B/F-S/F')] = '';
+    }
+
+    row[colIndex.unitPrice] = Number(mat.cost_mbf || 0);
+
+    // Total Cost Formula depends on type
+    if (mat.type === 'lumber' || mat.type === 'Lumber' || mat.type === 'panels' || mat.type === 'Panels') {
+      // Cost is per MBF/MSF -> (BF_SF / 1000) * UnitPrice
+      const bfCol = colName(getCol('B/F-S/F'));
+      row[colIndex.totalCost] = createFormula(`IF(${bfCol}${r}="","",(${bfCol}${r}*${costCol}${r})/1000)`);
+    } else if (mat.type === 'lvl' || mat.type === 'LVL') {
+      // Cost is per LF -> LF * UnitPrice
+      const lfCol = colName(getCol('L/F-Pcs.'));
+      row[colIndex.totalCost] = createFormula(`IF(${lfCol}${r}="","",${lfCol}${r}*${costCol}${r})`);
+    } else {
+      // Each/Invoice -> Qty * UnitPrice
+      row[colIndex.totalCost] = createFormula(`${qtyCol}${r}*${costCol}${r}`);
+    }
     
     // Total Cost + Tax
     row[colIndex.totalCostTax] = createFormula(`${colName(colIndex.totalCost)}${r}*${taxRate}`);
 
     // Invoice mapping
-    const matchedInvoice = invoices.find(inv => inv.po_id === mat.source_document || inv.po_number === mat.source_document);
-    row[getCol('Invoice #')] = matchedInvoice ? (matchedInvoice.invoice_number || matchedInvoice.id) : '';
+    row[getCol('Invoice #')] = mat.invoice_refs || '';
 
     // Delivery columns (leave blank for user entry)
 
@@ -115,18 +161,18 @@ export function generateClientRequirementsExcel(project, materials, pos, invoice
       row[getCol('Total Delivered')] = 0;
     }
 
-    row[getCol('L/F')] = '';
-    row[getCol('B/f - S/f Qty')] = '';
-    row[getCol('Cost')] = '';
-    row[getCol('Cost with Tax')] = '';
+    row[getCol('L/F')] = mat.delivered_lf || '';
+    row[getCol('B/f - S/f Qty')] = mat.delivered_bf_sf || '';
+    row[getCol('Cost')] = mat.delivered_cost || '';
+    row[getCol('Cost with Tax')] = mat.delivered_cost_tax || '';
 
     // % Delivery = Total Delivered / (PO + CO Qty)
     row[colIndex.pctDelivery] = createFormula(`IF(${colName(colIndex.poCoQty)}${r}=0,0,${colName(colIndex.totalDelivered)}${r}/${colName(colIndex.poCoQty)}${r})`);
 
-    row[getCol('Inventory (in Bundles)')] = '';
-    row[getCol('UOM')] = mat.uom || '';
-    row[getCol('PCS/Bundle')] = '';
-    row[getCol('Inventory in PCS')] = '';
+    row[getCol('Inventory (in Bundles)')] = mat.inv_bundles || '';
+    row[getCol('UOM')] = mat.inv_uom || '';
+    row[getCol('PCS/Bundle')] = mat.pcs_per_bundle || '';
+    row[getCol('Inventory in PCS')] = mat.inv_pcs || '';
     
     rows.push(row);
   });

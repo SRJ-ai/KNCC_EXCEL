@@ -40,6 +40,23 @@ class MaterialResponse(BaseModel):
     total_cost: float = 0
     total_cost_tax: float = 0
     invoice_refs: Optional[str] = None
+    
+    total_delivered: float = 0
+    delivered_lf: float = 0
+    delivered_bf_sf: float = 0
+    delivered_cost: float = 0
+    delivered_cost_tax: float = 0
+    pct_delivery: float = 0
+    
+    inv_bundles: Optional[float] = None
+    inv_uom: Optional[str] = None
+    pcs_per_bundle: Optional[float] = None
+    inv_pcs: float = 0
+    issues: float = 0
+    issues_lf: float = 0
+    issues_bf_sf: float = 0
+    pct_issued: float = 0
+    issues_cost: float = 0
 
     class Config:
         from_attributes = True
@@ -52,6 +69,8 @@ class DocumentResponse(BaseModel):
     filename: str
     doc_number: Optional[str] = None
     created_at: Optional[datetime] = None
+    amount: float = 0
+    date: Optional[str] = None
 
     class Config:
         from_attributes = True

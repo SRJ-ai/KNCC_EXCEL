@@ -3,19 +3,59 @@ import { Download, FileSpreadsheet, CheckCircle } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { usePlatform } from '../context/PlatformContext';
 import { generateClientRequirementsExcel } from '../utils/excelExport';
+import { supabase } from '../supabaseClient';
 import './ExcelExport.css';
 
 export default function ExcelExport() {
   const { activeProject, pos, invoices, cos, materials } = usePlatform();
   const [exported, setExported] = useState(false);
 
-  const handleExport = () => {
+  const handleExport = async () => {
     try {
-      const wb = generateClientRequirementsExcel(activeProject, materials, pos, invoices, cos);
-      
-      // ── Download ──────────────────────────────────────────────────────
-      const fileName = `KNCC_${(activeProject?.name || 'Project').replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`;
-      XLSX.writeFile(wb, fileName);
+      if (!activeProject) {
+        alert("No active project selected");
+        return;
+      }
+
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      const backendUrl = (
+        import.meta.env.VITE_BACKEND_URL ||
+        import.meta.env.VITE_API_URL ||
+        (import.meta.env.DEV ? 'http://localhost:8000' : '')
+      ).replace(/\/$/, '');
+
+      const headers = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const res = await fetch(`${backendUrl}/api/export/${activeProject.id}`, {
+        method: 'POST',
+        headers
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(errorText || `HTTP ${res.status}`);
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+
+      const dateStr = new Date().toISOString().split('T')[0];
+      const sanitizedProjectName = (activeProject?.name || 'Project').replace(/\s+/g, '_');
+      const fileName = `KNCC_${sanitizedProjectName}_${dateStr}.xlsx`;
+
+      link.setAttribute('download', fileName);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
       setExported(true);
       setTimeout(() => setExported(false), 3000);
     } catch (err) {

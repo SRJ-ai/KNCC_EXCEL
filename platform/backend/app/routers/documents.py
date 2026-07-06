@@ -20,7 +20,7 @@ def get_documents(project: Project = Depends(get_current_project), db: Session =
 
 
 @router.get("/pdf/{project_id}/{doc_id}")
-def get_pdf(doc_id: int, project: Project = Depends(get_current_project), db: Session = Depends(get_db)):
+def get_pdf(doc_id: str, project: Project = Depends(get_current_project), db: Session = Depends(get_db)):
     doc = db.query(Document).filter(Document.id == doc_id, Document.project_id == project.id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -31,7 +31,7 @@ def get_pdf(doc_id: int, project: Project = Depends(get_current_project), db: Se
 
 
 @router.get("/parsed/{project_id}/{doc_id}")
-def get_parsed(doc_id: int, project: Project = Depends(get_current_project), db: Session = Depends(get_db)):
+def get_parsed(doc_id: str, project: Project = Depends(get_current_project), db: Session = Depends(get_db)):
     doc = db.query(Document).filter(Document.id == doc_id, Document.project_id == project.id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")

@@ -72,3 +72,37 @@ The system must include a mechanism to automatically inject predefined test user
 - [ ] Programmatic verification: Using a blank template or starting from scratch, the system generates an Excel file where PO materials are correctly populated into rows.
 - [ ] Programmatic verification: The generated Excel file contains all required formulas (Total Cost, Delivery %, Issues, etc.) calculated correctly for the newly added rows.
 - [ ] Agent-as-judge: A UI testing agent can confirm that the system pauses and asks for user confirmation before applying row changes from a Change Order.
+
+## Follow-up — 2026-07-06T10:05:16Z
+
+Fix the PDF upload and confirmation pipeline so that materials successfully appear in the Material Grid and Excel exports, and intelligently map POs, Invoices, and Change Orders to exactly match the formatting in `Client_Requirments_Doc.xlsx` (including Willow Way's specific formatting).
+
+Working directory: C:\Users\Admin\Desktop\KNCC_EXCEL
+
+Integrity mode: development
+
+## Requirements
+
+### R1. Fix Data Persistence
+Fix the `/api/upload/confirm` endpoint so that uploaded PDF line items are successfully persisted into the database and instantly reflect in the frontend Material Grid.
+
+### R2. Intelligent Local Mapping (For Existing & New Projects)
+Implement intelligent local heuristics (regex, fuzzy matching, text similarity) to precisely map POs, Invoices, and Change Orders to the exact formatting defined in `Client_Requirments_Doc.xlsx` (covering Willow Way and Cobia Cove). Crucially, the logic must be generalized so that **new projects** and their documents can also be extracted and mapped seamlessly without requiring code changes.
+
+### R3. Excel Export Generation
+Build a feature to generate and download a brand new Excel file from the frontend. The generated file must perfectly mimic the original `Client_Requirments_Doc.xlsx` template structure but be populated with the live mapped project data.
+
+## Acceptance Criteria
+
+### R1 Verification
+- [ ] Submitting a valid payload to `/api/upload/confirm` results in a 200 OK response (no 500 errors).
+- [ ] Database query confirms the materials are successfully inserted into the `materials` table.
+
+### R2 Verification
+- [ ] A programmatic test script proves that raw PDF line items for "Willow Way" successfully match the corresponding template rows.
+- [ ] A programmatic test script proves that a document for a brand-new, unrecognized project is successfully extracted and mapped without crashing.
+- [ ] Invoices and Change Orders correctly adjust the quantities of the mapped materials instead of duplicating them.
+
+### R3 Verification
+- [ ] Triggering the Excel export generates a valid `.xlsx` file.
+- [ ] The generated Excel file contains the exact column headers and sheet structure found in the original `Client_Requirments_Doc.xlsx` template.

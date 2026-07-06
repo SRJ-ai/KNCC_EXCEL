@@ -13,12 +13,23 @@ from .database import init_db, SessionLocal
 from .routers import api_router
 from .config import UPLOAD_DIR, EXPORT_DIR
 from .core.validation import _sanitize_text
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 
 # Ensure required directories exist at startup
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(EXPORT_DIR, exist_ok=True)
 
 app = FastAPI(title="KNCC Platform API", version="1.0.0")
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    print(f"Validation Error: {exc.errors()}")
+    print(f"Body: {exc.body}")
+    return JSONResponse(
+        status_code=422,
+        content={"detail": exc.errors(), "body": exc.body},
+    )
 
 
 @app.get("/api/reset-db")

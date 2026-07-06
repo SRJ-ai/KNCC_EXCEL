@@ -440,7 +440,7 @@ async def get_unmatched_items(req: ExportDataRequest, db: Session = Depends(get_
 
 @router.post("/{project_id}")
 async def export_project_excel(
-    project_id: int,
+    project_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):

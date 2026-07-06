@@ -37,7 +37,7 @@ export default function Dashboard() {
   // ── Chart Data ────────────────────────────────────────────────────────
   // Area chart: PO vs Invoice over time
   const areaData = pos.slice(0, 7).map((po, i) => ({
-    name: po.po_number || `PO ${i + 1}`,
+    name: po.po_number || po.doc_number || `PO ${i + 1}`,
     po: Number(po.amount || 0),
     invoiced: Number(invoices[i]?.amount || 0),
   }));
@@ -59,9 +59,9 @@ export default function Dashboard() {
 
   // ── Activity Feed ─────────────────────────────────────────────────────
   const activities = [
-    ...pos.map(p => ({ icon: <Package size={14}/>, label: `PO ${p.po_number || p.id}`, sub: `${p.supplier || p.vendor || 'Vendor'} · $${Number(p.amount||0).toLocaleString()}`, color: '#3B82F6', time: p.date || p.created_at })),
-    ...invoices.map(i => ({ icon: <FileCheck size={14}/>, label: `Invoice ${i.invoice_number || i.id}`, sub: `${i.supplier||''} · $${Number(i.amount||0).toLocaleString()}`, color: '#10B981', time: i.date || i.created_at })),
-    ...cos.map(c => ({ icon: <AlertCircle size={14}/>, label: `CO ${c.co_number || c.id}`, sub: `${c.description?.slice(0,40)||'Change Order'}…`, color: '#F59E0B', time: c.date || c.created_at })),
+    ...pos.map(p => ({ icon: <Package size={14}/>, label: `PO ${p.po_number || p.doc_number || p.id}`, sub: `${p.supplier || p.vendor || 'Vendor'} · $${Number(p.amount||0).toLocaleString()}`, color: '#3B82F6', time: p.date || p.created_at })),
+    ...invoices.map(i => ({ icon: <FileCheck size={14}/>, label: `Invoice ${i.invoice_number || i.doc_number || i.id}`, sub: `${i.supplier||''} · $${Number(i.amount||0).toLocaleString()}`, color: '#10B981', time: i.date || i.created_at })),
+    ...cos.map(c => ({ icon: <AlertCircle size={14}/>, label: `CO ${c.co_number || c.doc_number || c.id}`, sub: `${c.description?.slice(0,40)||'Change Order'}…`, color: '#F59E0B', time: c.date || c.created_at })),
   ].sort((a, b) => new Date(b.time || 0) - new Date(a.time || 0)).slice(0, 6);
 
   // ── Export ────────────────────────────────────────────────────────────

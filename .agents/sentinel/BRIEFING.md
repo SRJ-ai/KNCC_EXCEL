@@ -1,13 +1,13 @@
-# BRIEFING — 2026-07-02T21:40:17+05:30
+# BRIEFING — 2026-07-06T15:35:16+05:30
 
 ## Mission
-Coordinate the implementation of the PO/CO invoice extraction web application enhancements (dynamic Excel generation from scratch, Supabase data persistence, interactive row change confirmation, and Supabase test user injection) by spawning the Project Orchestrator, monitoring progress, and initiating victory auditing.
+Coordinate implementation of R1 (persist PDF confirm line items), R2 (intelligent local mapping of POs/Invoices/COs for existing & new projects), and R3 (Excel export perfectly mimicking the Client_Requirments_Doc.xlsx template).
 
 ## 🔒 My Identity
 - Archetype: sentinel
 - Working directory: c:\Users\Admin\Desktop\KNCC_EXCEL\.agents\sentinel
-- Orchestrator: 25857ff8-5d3c-4ebe-b94d-7168912d068f
-- Victory Auditor: ea4ea994-ece5-4aaa-93fd-d4c39b28f8d3
+- Orchestrator: 908cbde3-aa9a-4a4f-b341-990529153c8e
+- Victory Auditor: 0bf612e1-5cfc-44fe-a292-7d39470122ca
 
 ## 🔒 Key Constraints
 - No technical decisions — relay only
@@ -16,7 +16,7 @@ Coordinate the implementation of the PO/CO invoice extraction web application en
 - Set Liveness Check cron: */10 * * * *
 
 ## User Context
-- **Last user request**: Build a web application that parses Purchase Orders (POs) and Change Orders (COs) to dynamically generate the `client_req_doc` Excel file entirely from scratch (without pre-filled templates). The system must securely persist data across page reloads, require user confirmation before applying row changes, and automatically provision test accounts in Supabase.
+- **Last user request**: Fix the PDF upload/confirm pipeline (materials persisted/visible), intelligently map POs, Invoices, COs matching formatting (Willow Way), generalize for new projects/docs, and generate/download Excel perfectly matching template.
 - **Pending clarifications**: [none]
 - **Delivered results**: [none]
 
@@ -26,8 +26,8 @@ Coordinate the implementation of the PO/CO invoice extraction web application en
 ## Victory Audit Status
 - **Triggered**: yes
 - **Verdict**: VICTORY CONFIRMED
-- **Retry count**: 0
+- **Retry count**: 1
 
 ## Artifact Index
 - c:\Users\Admin\Desktop\KNCC_EXCEL\ORIGINAL_REQUEST.md — Verbatim user request record
-- c:\Users\Admin\Desktop\KNCC_EXCEL\.agents\victory_auditor_gen2\handoff.md — Auditor handoff report
+- c:\Users\Admin\Desktop\KNCC_EXCEL\.agents\victory_auditor_gen3_retry\audit_report.md — Victory Audit Report

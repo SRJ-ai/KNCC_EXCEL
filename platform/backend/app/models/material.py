@@ -1,10 +1,11 @@
+import uuid
 from sqlalchemy import Column, Integer, String, Float, ForeignKey
 from ..database import Base
 
 class Material(Base):
     __tablename__ = "materials"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     project_id = Column(Integer, ForeignKey("projects.id"), index=True)
     
     type = Column(String)  # Lumber, LVL, Panels, Each
@@ -28,7 +29,7 @@ class Material(Base):
 class COAdjustment(Base):
     __tablename__ = "co_adjustments"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     material_id = Column(Integer, ForeignKey("materials.id"), index=True)
     co_number = Column(String)
     co_date = Column(String)

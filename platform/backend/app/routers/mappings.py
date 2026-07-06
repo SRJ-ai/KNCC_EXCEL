@@ -11,12 +11,12 @@ from ..models.mapping import ItemMapping
 router = APIRouter()
 
 class ItemMappingCreate(BaseModel):
-    project_id: int
+    project_id: str
     invoice_description: str
-    material_id: int
+    material_id: str
 
 @router.get("/")
-def get_mappings(project_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_mappings(project_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     mappings = db.query(ItemMapping).filter(ItemMapping.project_id == project_id).all()
     return mappings
 

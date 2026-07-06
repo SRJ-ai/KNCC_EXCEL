@@ -17,6 +17,8 @@ export function PlatformProvider({ children }) {
   const [documents, setDocuments] = useState([]);
   const [materials, setMaterials] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [lastActivity, setLastActivity] = useState(null);
+
 
   // Keep localStorage in sync with state changes
   useEffect(() => {
@@ -88,19 +90,38 @@ export function PlatformProvider({ children }) {
     if (!activeProject) return;
     try {
       const pId = activeProject.id;
-      const [posRes, invRes, cosRes, docsRes, matsRes] = await Promise.all([
-        supabase.from('pos').select('*').eq('project_id', pId),
-        supabase.from('invoices').select('*').eq('project_id', pId),
-        supabase.from('cos').select('*').eq('project_id', pId),
-        supabase.from('documents').select('*').eq('project_id', pId).order('created_at', { ascending: false }),
-        supabase.from('materials').select('*').eq('project_id', pId),
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      const backendUrl = (
+        import.meta.env.VITE_BACKEND_URL ||
+        import.meta.env.VITE_API_URL ||
+        (import.meta.env.DEV ? 'http://localhost:8000' : '')
+      ).replace(/\/$/, '');
+
+      const headers = {};
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
+
+      const [matsRes, docsRes] = await Promise.all([
+        fetch(`${backendUrl}/api/materials/${pId}`, { headers }),
+        fetch(`${backendUrl}/api/documents/${pId}`, { headers }),
       ]);
 
-      if (posRes.data) setPos(posRes.data);
-      if (invRes.data) setInvoices(invRes.data);
-      if (cosRes.data) setCos(cosRes.data);
-      if (docsRes.data) setDocuments(docsRes.data);
-      if (matsRes.data) setMaterials(matsRes.data);
+      const matsData = matsRes.ok ? await matsRes.json() : [];
+      const docsData = docsRes.ok ? await docsRes.json() : [];
+
+      console.log('--- REFRESH PROJECT DATA ---');
+      console.log('Mats Res OK:', matsRes.ok, 'Status:', matsRes.status);
+      console.log('Docs Res OK:', docsRes.ok, 'Status:', docsRes.status);
+      console.log('Mats Data Length:', matsData.length);
+      console.log('Docs Data Length:', docsData.length);
+
+      setMaterials(matsData);
+      setDocuments(docsData);
+      setPos(docsData.filter(d => d.doc_type === 'PO'));
+      setInvoices(docsData.filter(d => d.doc_type === 'INV'));
+      setCos(docsData.filter(d => d.doc_type === 'CO'));
     } catch (err) {
       console.error("Failed to fetch project data:", err);
     }
@@ -109,6 +130,34 @@ export function PlatformProvider({ children }) {
   useEffect(() => {
     refreshProjectData();
   }, [activeProject?.id]);
+
+  // ─── Supabase Realtime: auto-refresh when any user uploads/changes data ───
+  useEffect(() => {
+    if (!activeProject?.id) return;
+    const projectId = activeProject.id;
+
+    const channel = supabase
+      .channel(`project-${projectId}-realtime`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'documents', filter: `project_id=eq.${projectId}` },
+        () => { refreshProjectData(); }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'materials', filter: `project_id=eq.${projectId}` },
+        () => { refreshProjectData(); }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'activities', filter: `project_id=eq.${projectId}` },
+        (payload) => { setLastActivity(payload.new); }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [activeProject?.id]);
+
 
   const createProject = async (projectData) => {
     try {
@@ -144,6 +193,39 @@ export function PlatformProvider({ children }) {
       return data;
     } catch (err) {
       console.error("Project creation failed:", err.message);
+      throw err;
+    }
+  };
+
+  const deleteProject = async (projectId) => {
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      
+      const backendUrl = (
+        import.meta.env.VITE_BACKEND_URL ||
+        import.meta.env.VITE_API_URL ||
+        (import.meta.env.DEV ? 'http://localhost:8000' : '')
+      ).replace(/\/$/, '');
+      
+      const res = await fetch(`${backendUrl}/api/projects/${projectId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`
+        }
+      });
+      
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Failed to delete project');
+      }
+
+      setProjects(prev => prev.filter(p => p.id !== projectId));
+      if (activeProject?.id === projectId) {
+        clearActiveProject();
+      }
+    } catch (err) {
+      console.error("Project deletion error:", err);
       throw err;
     }
   };
@@ -206,7 +288,9 @@ export function PlatformProvider({ children }) {
       documents,
       materials,
       loading,
+      lastActivity,
       createProject,
+      deleteProject,
       addPO,
       addInvoice,
       addCO,
