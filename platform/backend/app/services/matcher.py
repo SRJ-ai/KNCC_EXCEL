@@ -121,6 +121,8 @@ def score_match(inv_desc: str, inv_dims: str, inv_code: str, mat_type: str, mat_
         
     # Extract dimensions
     inv_t, inv_w, inv_l = get_dimensions(inv_desc, inv_dims)
+    if mat_thickness is None and mat_width is None:
+        mat_thickness, mat_width, mat_length = get_dimensions(mat_desc, "")
     
     # Matching dimensions = +5 each
     if inv_t is not None and mat_thickness is not None:
@@ -133,11 +135,16 @@ def score_match(inv_desc: str, inv_dims: str, inv_code: str, mat_type: str, mat_
         if abs(inv_l - mat_length) < 0.01:
             score += 5
             
-    # Wood-species keyword match = +3
-    keywords = ["TREATED", "SOUTHERN YELLOW PINE", "LVL", "OSB", "PLYWOOD", "ZIP"]
+    # Wood-species keyword match
+    keywords = ["TREATED", "SOUTHERN YELLOW PINE", "ZIP"]
     for kw in keywords:
         if kw in inv_desc_norm and kw in mat_desc_norm:
             score += 3
+            
+    if any(k in inv_desc_norm for k in ["LVL", "GLULAM", "PSL", "GLB", "BEAM"]) and any(k in mat_desc_norm for k in ["LVL", "GLULAM", "PSL", "GLB", "BEAM"]):
+        score += 5
+    if any(k in inv_desc_norm for k in ["OSB", "PLYWOOD", "PLY"]) and any(k in mat_desc_norm for k in ["OSB", "PLYWOOD", "PLY"]):
+        score += 5
             
     # Description word overlap
     inv_words = set(inv_desc_norm.split())
